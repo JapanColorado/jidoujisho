@@ -4,11 +4,13 @@ import 'dart:io';
 
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_logs/flutter_logs.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:local_assets_server/local_assets_server.dart';
 import 'package:material_floating_search_bar/material_floating_search_bar.dart';
+import 'package:mime/mime.dart';
+import 'package:path/path.dart' as p;
 import 'package:yuuna/language.dart';
 import 'package:yuuna/media.dart';
 import 'package:yuuna/models.dart';
@@ -17,7 +19,7 @@ import 'package:yuuna/utils.dart';
 
 /// A global [Provider] for serving a local ッツ Ebook Reader.
 final ttuServerProvider =
-    FutureProvider.family<LocalAssetsServer, Language>((ref, language) {
+    FutureProvider.family<TtuAssetsServer, Language>((ref, language) {
   return ReaderTtuSource.instance.serveLocalAssets(language);
 });
 
@@ -98,7 +100,7 @@ class ReaderTtuSource extends ReaderMediaSource {
   bool _lastServeFailed = false;
 
   /// For serving the reader assets locally.
-  Future<LocalAssetsServer> serveLocalAssets(Language language) async {
+  Future<TtuAssetsServer> serveLocalAssets(Language language) async {
     int port = getPortForLanguage(language);
 
     if (_lastServeFailed) {
@@ -107,11 +109,10 @@ class ReaderTtuSource extends ReaderMediaSource {
 
     try {
       _lastServeFailed = false;
-      final server = LocalAssetsServer(
+      final server = TtuAssetsServer(
         address: InternetAddress.loopbackIPv4,
         port: port,
         assetsBasePath: 'assets/ttu-ebook-reader',
-        logger: const DebugLogger(),
       );
 
       await server.serve();
@@ -692,4 +693,113 @@ indexedDB.databases().then((databases) => {
       value: ttuInternalVersion,
     );
   }
+}
+
+/// Serves the bundled ッツ Ebook Reader assets over a localhost HTTP server.
+///
+/// The upstream reader is a SvelteKit static export that uses clean route
+/// paths (e.g. `/auth`, `/manage`) which map to `<route>.html` files at the
+/// asset root. Requests that fail an exact-name lookup fall through to a
+/// `.html` candidate, then to the bundled `404.html`.
+class TtuAssetsServer {
+  /// Bind a server at [address] and [port], serving Flutter assets rooted at
+  /// [assetsBasePath].
+  TtuAssetsServer({
+    required this.address,
+    required this.port,
+    required this.assetsBasePath,
+  });
+
+  /// Address to bind to.
+  final InternetAddress address;
+
+  /// Port to bind to.
+  final int port;
+
+  /// Asset bundle path that the server resolves requests against.
+  final String assetsBasePath;
+
+  HttpServer? _server;
+  final Map<String, ByteData> _cache = {};
+
+  /// The actual port the underlying [HttpServer] is bound to once [serve] has
+  /// been awaited; `null` before that.
+  int? get boundPort => _server?.port;
+
+  /// Bind and start handling requests.
+  Future<InternetAddress> serve() async {
+    final s = await HttpServer.bind(address, port);
+    s.listen(_handle);
+    _server = s;
+    return s.address;
+  }
+
+  /// Stop serving and clear the in-memory asset cache.
+  Future<void> stop() async {
+    _cache.clear();
+    await _server?.close();
+  }
+
+  Future<void> _handle(HttpRequest request) async {
+    var path = request.requestedUri.path.replaceFirst('/', '');
+    if (path.endsWith('/')) {
+      path = path.substring(0, path.length - 1);
+    }
+    if (path.isEmpty) {
+      path = 'index.html';
+    }
+
+    final resolved = await _resolve(path);
+    final mime = lookupMimeType(p.basename(resolved.path)) ??
+        'application/octet-stream';
+
+    request.response.statusCode = resolved.statusCode;
+    request.response.headers.contentType =
+        ContentType.parse('$mime; charset=utf-8');
+    request.response.add(resolved.bytes.buffer.asUint8List());
+    await request.response.close();
+  }
+
+  Future<_ResolvedAsset> _resolve(String path) async {
+    final bytes = await _load(path);
+    if (bytes != null) {
+      return _ResolvedAsset(path, bytes, 200);
+    }
+
+    if (p.extension(path).isEmpty) {
+      final htmlPath = '$path.html';
+      final htmlBytes = await _load(htmlPath);
+      if (htmlBytes != null) {
+        return _ResolvedAsset(htmlPath, htmlBytes, 200);
+      }
+    }
+
+    final notFoundBytes = await _load('404.html');
+    if (notFoundBytes != null) {
+      return _ResolvedAsset('404.html', notFoundBytes, 404);
+    }
+    return _ResolvedAsset(path, ByteData(0), 404);
+  }
+
+  Future<ByteData?> _load(String path) async {
+    final cached = _cache[path];
+    if (cached != null) {
+      return cached;
+    }
+    try {
+      final data = await rootBundle.load(p.join(assetsBasePath, path));
+      _cache[path] = data;
+      return data;
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+class _ResolvedAsset {
+  _ResolvedAsset(this.path, this.bytes, this.statusCode);
+
+  final String path;
+  final ByteData bytes;
+  final int statusCode;
 }

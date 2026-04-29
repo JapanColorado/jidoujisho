@@ -1,7 +1,8 @@
 // coverage:ignore-file
 // GENERATED CODE - DO NOT MODIFY BY HAND
 // ignore_for_file: type=lint
-// ignore_for_file: unused_element
+// ignore_for_file: unused_element, unnecessary_cast, override_on_non_overriding_member
+// ignore_for_file: strict_raw_type, inference_failure_on_untyped_parameter
 
 part of 'structured_content.dart';
 
@@ -33,7 +34,7 @@ class StructuredContentMapper extends ClassMapperBase<StructuredContent> {
       Field('content', _$content, opt: true, hook: ContentHook());
 
   @override
-  final Map<Symbol, Field<StructuredContent, dynamic>> fields = const {
+  final MappableFields<StructuredContent> fields = const {
     #content: _f$content,
   };
 
@@ -80,7 +81,7 @@ class StructuredContentTextNodeMapper
       Field('content', _$content, hook: ContentHook());
 
   @override
-  final Map<Symbol, Field<StructuredContentTextNode, dynamic>> fields = const {
+  final MappableFields<StructuredContentTextNode> fields = const {
     #text: _f$text,
     #content: _f$content,
   };
@@ -134,10 +135,8 @@ mixin StructuredContentTextNodeMappable {
 
   @override
   bool operator ==(Object other) {
-    return identical(this, other) ||
-        (runtimeType == other.runtimeType &&
-            StructuredContentTextNodeMapper.ensureInitialized()
-                .isValueEqual(this as StructuredContentTextNode, other));
+    return StructuredContentTextNodeMapper.ensureInitialized()
+        .equalsValue(this as StructuredContentTextNode, other);
   }
 
   @override
@@ -213,8 +212,7 @@ class StructuredContentChildContentMapper
       _f$content = Field('content', _$content, hook: ContentHook());
 
   @override
-  final Map<Symbol, Field<StructuredContentChildContent, dynamic>> fields =
-      const {
+  final MappableFields<StructuredContentChildContent> fields = const {
     #children: _f$children,
     #content: _f$content,
   };
@@ -268,10 +266,8 @@ mixin StructuredContentChildContentMappable {
 
   @override
   bool operator ==(Object other) {
-    return identical(this, other) ||
-        (runtimeType == other.runtimeType &&
-            StructuredContentChildContentMapper.ensureInitialized()
-                .isValueEqual(this as StructuredContentChildContent, other));
+    return StructuredContentChildContentMapper.ensureInitialized()
+        .equalsValue(this as StructuredContentChildContent, other);
   }
 
   @override
@@ -353,7 +349,7 @@ class StructuredContentLineBreakMapper
       Field('content', _$content, hook: ContentHook());
 
   @override
-  final Map<Symbol, Field<StructuredContentLineBreak, dynamic>> fields = const {
+  final MappableFields<StructuredContentLineBreak> fields = const {
     #content: _f$content,
   };
 
@@ -406,10 +402,8 @@ mixin StructuredContentLineBreakMappable {
 
   @override
   bool operator ==(Object other) {
-    return identical(this, other) ||
-        (runtimeType == other.runtimeType &&
-            StructuredContentLineBreakMapper.ensureInitialized()
-                .isValueEqual(this as StructuredContentLineBreak, other));
+    return StructuredContentLineBreakMapper.ensureInitialized()
+        .equalsValue(this as StructuredContentLineBreak, other);
   }
 
   @override
@@ -485,6 +479,9 @@ class StructuredContentImageMapper
   static String? _$title(StructuredContentImage v) => v.title;
   static const Field<StructuredContentImage, String> _f$title =
       Field('title', _$title, opt: true);
+  static String? _$alt(StructuredContentImage v) => v.alt;
+  static const Field<StructuredContentImage, String> _f$alt =
+      Field('alt', _$alt, opt: true);
   static String? _$description(StructuredContentImage v) => v.description;
   static const Field<StructuredContentImage, String> _f$description =
       Field('description', _$description, opt: true);
@@ -512,16 +509,23 @@ class StructuredContentImageMapper
   static String? _$sizeUnits(StructuredContentImage v) => v.sizeUnits;
   static const Field<StructuredContentImage, String> _f$sizeUnits =
       Field('sizeUnits', _$sizeUnits, opt: true);
+  static String? _$border(StructuredContentImage v) => v.border;
+  static const Field<StructuredContentImage, String> _f$border =
+      Field('border', _$border, opt: true);
+  static String? _$borderRadius(StructuredContentImage v) => v.borderRadius;
+  static const Field<StructuredContentImage, String> _f$borderRadius =
+      Field('borderRadius', _$borderRadius, opt: true);
   static StructuredContent? _$content(StructuredContentImage v) => v.content;
   static const Field<StructuredContentImage, StructuredContent> _f$content =
       Field('content', _$content, hook: ContentHook());
 
   @override
-  final Map<Symbol, Field<StructuredContentImage, dynamic>> fields = const {
+  final MappableFields<StructuredContentImage> fields = const {
     #path: _f$path,
     #width: _f$width,
     #height: _f$height,
     #title: _f$title,
+    #alt: _f$alt,
     #description: _f$description,
     #pixelated: _f$pixelated,
     #imageRendering: _f$imageRendering,
@@ -531,6 +535,8 @@ class StructuredContentImageMapper
     #collapsible: _f$collapsible,
     #verticalAlign: _f$verticalAlign,
     #sizeUnits: _f$sizeUnits,
+    #border: _f$border,
+    #borderRadius: _f$borderRadius,
     #content: _f$content,
   };
 
@@ -548,6 +554,7 @@ class StructuredContentImageMapper
         width: data.dec(_f$width),
         height: data.dec(_f$height),
         title: data.dec(_f$title),
+        alt: data.dec(_f$alt),
         description: data.dec(_f$description),
         pixelated: data.dec(_f$pixelated),
         imageRendering: data.dec(_f$imageRendering),
@@ -556,7 +563,9 @@ class StructuredContentImageMapper
         collapsed: data.dec(_f$collapsed),
         collapsible: data.dec(_f$collapsible),
         verticalAlign: data.dec(_f$verticalAlign),
-        sizeUnits: data.dec(_f$sizeUnits));
+        sizeUnits: data.dec(_f$sizeUnits),
+        border: data.dec(_f$border),
+        borderRadius: data.dec(_f$borderRadius));
   }
 
   @override
@@ -594,10 +603,8 @@ mixin StructuredContentImageMappable {
 
   @override
   bool operator ==(Object other) {
-    return identical(this, other) ||
-        (runtimeType == other.runtimeType &&
-            StructuredContentImageMapper.ensureInitialized()
-                .isValueEqual(this as StructuredContentImage, other));
+    return StructuredContentImageMapper.ensureInitialized()
+        .equalsValue(this as StructuredContentImage, other);
   }
 
   @override
@@ -623,6 +630,7 @@ abstract class StructuredContentImageCopyWith<
       double? width,
       double? height,
       String? title,
+      String? alt,
       String? description,
       bool? pixelated,
       String? imageRendering,
@@ -631,7 +639,9 @@ abstract class StructuredContentImageCopyWith<
       bool? collapsed,
       bool? collapsible,
       String? verticalAlign,
-      String? sizeUnits});
+      String? sizeUnits,
+      String? border,
+      String? borderRadius});
   StructuredContentImageCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -651,6 +661,7 @@ class _StructuredContentImageCopyWithImpl<$R, $Out>
           Object? width = $none,
           Object? height = $none,
           Object? title = $none,
+          Object? alt = $none,
           Object? description = $none,
           bool? pixelated,
           String? imageRendering,
@@ -659,12 +670,15 @@ class _StructuredContentImageCopyWithImpl<$R, $Out>
           bool? collapsed,
           bool? collapsible,
           Object? verticalAlign = $none,
-          Object? sizeUnits = $none}) =>
+          Object? sizeUnits = $none,
+          Object? border = $none,
+          Object? borderRadius = $none}) =>
       $apply(FieldCopyWithData({
         if (path != null) #path: path,
         if (width != $none) #width: width,
         if (height != $none) #height: height,
         if (title != $none) #title: title,
+        if (alt != $none) #alt: alt,
         if (description != $none) #description: description,
         if (pixelated != null) #pixelated: pixelated,
         if (imageRendering != null) #imageRendering: imageRendering,
@@ -673,7 +687,9 @@ class _StructuredContentImageCopyWithImpl<$R, $Out>
         if (collapsed != null) #collapsed: collapsed,
         if (collapsible != null) #collapsible: collapsible,
         if (verticalAlign != $none) #verticalAlign: verticalAlign,
-        if (sizeUnits != $none) #sizeUnits: sizeUnits
+        if (sizeUnits != $none) #sizeUnits: sizeUnits,
+        if (border != $none) #border: border,
+        if (borderRadius != $none) #borderRadius: borderRadius
       }));
   @override
   StructuredContentImage $make(CopyWithData data) => StructuredContentImage(
@@ -681,6 +697,7 @@ class _StructuredContentImageCopyWithImpl<$R, $Out>
       width: data.get(#width, or: $value.width),
       height: data.get(#height, or: $value.height),
       title: data.get(#title, or: $value.title),
+      alt: data.get(#alt, or: $value.alt),
       description: data.get(#description, or: $value.description),
       pixelated: data.get(#pixelated, or: $value.pixelated),
       imageRendering: data.get(#imageRendering, or: $value.imageRendering),
@@ -689,7 +706,9 @@ class _StructuredContentImageCopyWithImpl<$R, $Out>
       collapsed: data.get(#collapsed, or: $value.collapsed),
       collapsible: data.get(#collapsible, or: $value.collapsible),
       verticalAlign: data.get(#verticalAlign, or: $value.verticalAlign),
-      sizeUnits: data.get(#sizeUnits, or: $value.sizeUnits));
+      sizeUnits: data.get(#sizeUnits, or: $value.sizeUnits),
+      border: data.get(#border, or: $value.border),
+      borderRadius: data.get(#borderRadius, or: $value.borderRadius));
 
   @override
   StructuredContentImageCopyWith<$R2, StructuredContentImage, $Out2>
@@ -725,7 +744,7 @@ class StructuredContentLinkMapper
       Field('lang', _$lang, opt: true);
 
   @override
-  final Map<Symbol, Field<StructuredContentLink, dynamic>> fields = const {
+  final MappableFields<StructuredContentLink> fields = const {
     #href: _f$href,
     #content: _f$content,
     #lang: _f$lang,
@@ -781,10 +800,8 @@ mixin StructuredContentLinkMappable {
 
   @override
   bool operator ==(Object other) {
-    return identical(this, other) ||
-        (runtimeType == other.runtimeType &&
-            StructuredContentLinkMapper.ensureInitialized()
-                .isValueEqual(this as StructuredContentLink, other));
+    return StructuredContentLinkMapper.ensureInitialized()
+        .equalsValue(this as StructuredContentLink, other);
   }
 
   @override
@@ -870,7 +887,7 @@ class StructuredContentContainerMapper
       Field('lang', _$lang, opt: true);
 
   @override
-  final Map<Symbol, Field<StructuredContentContainer, dynamic>> fields = const {
+  final MappableFields<StructuredContentContainer> fields = const {
     #tag: _f$tag,
     #content: _f$content,
     #data: _f$data,
@@ -930,10 +947,8 @@ mixin StructuredContentContainerMappable {
 
   @override
   bool operator ==(Object other) {
-    return identical(this, other) ||
-        (runtimeType == other.runtimeType &&
-            StructuredContentContainerMapper.ensureInitialized()
-                .isValueEqual(this as StructuredContentContainer, other));
+    return StructuredContentContainerMapper.ensureInitialized()
+        .equalsValue(this as StructuredContentContainer, other);
   }
 
   @override
@@ -1043,15 +1058,22 @@ class StructuredContentStyledContainerMapper
   static String? _$lang(StructuredContentStyledContainer v) => v.lang;
   static const Field<StructuredContentStyledContainer, String> _f$lang =
       Field('lang', _$lang, opt: true);
+  static String? _$title(StructuredContentStyledContainer v) => v.title;
+  static const Field<StructuredContentStyledContainer, String> _f$title =
+      Field('title', _$title, opt: true);
+  static bool? _$open(StructuredContentStyledContainer v) => v.open;
+  static const Field<StructuredContentStyledContainer, bool> _f$open =
+      Field('open', _$open, opt: true);
 
   @override
-  final Map<Symbol, Field<StructuredContentStyledContainer, dynamic>> fields =
-      const {
+  final MappableFields<StructuredContentStyledContainer> fields = const {
     #tag: _f$tag,
     #content: _f$content,
     #style: _f$style,
     #data: _f$data,
     #lang: _f$lang,
+    #title: _f$title,
+    #open: _f$open,
   };
 
   @override
@@ -1068,7 +1090,9 @@ class StructuredContentStyledContainerMapper
         content: data.dec(_f$content),
         style: data.dec(_f$style),
         data: data.dec(_f$data),
-        lang: data.dec(_f$lang));
+        lang: data.dec(_f$lang),
+        title: data.dec(_f$title),
+        open: data.dec(_f$open));
   }
 
   @override
@@ -1109,10 +1133,8 @@ mixin StructuredContentStyledContainerMappable {
 
   @override
   bool operator ==(Object other) {
-    return identical(this, other) ||
-        (runtimeType == other.runtimeType &&
-            StructuredContentStyledContainerMapper.ensureInitialized()
-                .isValueEqual(this as StructuredContentStyledContainer, other));
+    return StructuredContentStyledContainerMapper.ensureInitialized()
+        .equalsValue(this as StructuredContentStyledContainer, other);
   }
 
   @override
@@ -1142,7 +1164,9 @@ abstract class StructuredContentStyledContainerCopyWith<
       StructuredContent? content,
       StructuredContentStyle? style,
       Map<String, String>? data,
-      String? lang});
+      String? lang,
+      String? title,
+      bool? open});
   StructuredContentStyledContainerCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
 }
@@ -1174,13 +1198,17 @@ class _StructuredContentStyledContainerCopyWithImpl<$R, $Out>
           Object? content = $none,
           Object? style = $none,
           Object? data = $none,
-          Object? lang = $none}) =>
+          Object? lang = $none,
+          Object? title = $none,
+          Object? open = $none}) =>
       $apply(FieldCopyWithData({
         if (tag != null) #tag: tag,
         if (content != $none) #content: content,
         if (style != $none) #style: style,
         if (data != $none) #data: data,
-        if (lang != $none) #lang: lang
+        if (lang != $none) #lang: lang,
+        if (title != $none) #title: title,
+        if (open != $none) #open: open
       }));
   @override
   StructuredContentStyledContainer $make(CopyWithData data) =>
@@ -1189,7 +1217,9 @@ class _StructuredContentStyledContainerCopyWithImpl<$R, $Out>
           content: data.get(#content, or: $value.content),
           style: data.get(#style, or: $value.style),
           data: data.get(#data, or: $value.data),
-          lang: data.get(#lang, or: $value.lang));
+          lang: data.get(#lang, or: $value.lang),
+          title: data.get(#title, or: $value.title),
+          open: data.get(#open, or: $value.open));
 
   @override
   StructuredContentStyledContainerCopyWith<$R2,
@@ -1213,54 +1243,125 @@ class StructuredContentStyleMapper
   @override
   final String id = 'StructuredContentStyle';
 
-  static String _$fontStyle(StructuredContentStyle v) => v.fontStyle;
+  static String? _$fontStyle(StructuredContentStyle v) => v.fontStyle;
   static const Field<StructuredContentStyle, String> _f$fontStyle =
-      Field('fontStyle', _$fontStyle, opt: true, def: 'normal');
-  static String _$fontWeight(StructuredContentStyle v) => v.fontWeight;
+      Field('fontStyle', _$fontStyle, opt: true);
+  static String? _$fontWeight(StructuredContentStyle v) => v.fontWeight;
   static const Field<StructuredContentStyle, String> _f$fontWeight =
-      Field('fontWeight', _$fontWeight, opt: true, def: 'normal');
-  static String _$fontSize(StructuredContentStyle v) => v.fontSize;
+      Field('fontWeight', _$fontWeight, opt: true);
+  static String? _$fontSize(StructuredContentStyle v) => v.fontSize;
   static const Field<StructuredContentStyle, String> _f$fontSize =
-      Field('fontSize', _$fontSize, opt: true, def: 'medium');
-  static List<String> _$textDecorationLine(StructuredContentStyle v) =>
+      Field('fontSize', _$fontSize, opt: true);
+  static String? _$color(StructuredContentStyle v) => v.color;
+  static const Field<StructuredContentStyle, String> _f$color =
+      Field('color', _$color, opt: true);
+  static String? _$background(StructuredContentStyle v) => v.background;
+  static const Field<StructuredContentStyle, String> _f$background =
+      Field('background', _$background, opt: true);
+  static String? _$backgroundColor(StructuredContentStyle v) =>
+      v.backgroundColor;
+  static const Field<StructuredContentStyle, String> _f$backgroundColor =
+      Field('backgroundColor', _$backgroundColor, opt: true);
+  static List<String>? _$textDecorationLine(StructuredContentStyle v) =>
       v.textDecorationLine;
   static const Field<StructuredContentStyle, List<String>>
       _f$textDecorationLine = Field('textDecorationLine', _$textDecorationLine,
-          opt: true, def: const [], hook: TextDecorationLineHooker());
-  static String _$verticalAlign(StructuredContentStyle v) => v.verticalAlign;
+          opt: true, hook: TextDecorationLineHooker());
+  static String? _$textDecorationStyle(StructuredContentStyle v) =>
+      v.textDecorationStyle;
+  static const Field<StructuredContentStyle, String> _f$textDecorationStyle =
+      Field('textDecorationStyle', _$textDecorationStyle, opt: true);
+  static String? _$textDecorationColor(StructuredContentStyle v) =>
+      v.textDecorationColor;
+  static const Field<StructuredContentStyle, String> _f$textDecorationColor =
+      Field('textDecorationColor', _$textDecorationColor, opt: true);
+  static String? _$verticalAlign(StructuredContentStyle v) => v.verticalAlign;
   static const Field<StructuredContentStyle, String> _f$verticalAlign =
-      Field('verticalAlign', _$verticalAlign, opt: true, def: 'baseline');
-  static String _$textAlign(StructuredContentStyle v) => v.textAlign;
+      Field('verticalAlign', _$verticalAlign, opt: true);
+  static String? _$textAlign(StructuredContentStyle v) => v.textAlign;
   static const Field<StructuredContentStyle, String> _f$textAlign =
-      Field('textAlign', _$textAlign, opt: true, def: 'start');
-  static double _$marginTop(StructuredContentStyle v) => v.marginTop;
+      Field('textAlign', _$textAlign, opt: true);
+  static String? _$wordBreak(StructuredContentStyle v) => v.wordBreak;
+  static const Field<StructuredContentStyle, String> _f$wordBreak =
+      Field('wordBreak', _$wordBreak, opt: true);
+  static String? _$whiteSpace(StructuredContentStyle v) => v.whiteSpace;
+  static const Field<StructuredContentStyle, String> _f$whiteSpace =
+      Field('whiteSpace', _$whiteSpace, opt: true);
+  static String? _$margin(StructuredContentStyle v) => v.margin;
+  static const Field<StructuredContentStyle, String> _f$margin =
+      Field('margin', _$margin, opt: true);
+  static double? _$marginTop(StructuredContentStyle v) => v.marginTop;
   static const Field<StructuredContentStyle, double> _f$marginTop =
-      Field('marginTop', _$marginTop, opt: true, def: 0);
-  static double _$marginLeft(StructuredContentStyle v) => v.marginLeft;
+      Field('marginTop', _$marginTop, opt: true);
+  static double? _$marginLeft(StructuredContentStyle v) => v.marginLeft;
   static const Field<StructuredContentStyle, double> _f$marginLeft =
-      Field('marginLeft', _$marginLeft, opt: true, def: 0);
-  static double _$marginRight(StructuredContentStyle v) => v.marginRight;
+      Field('marginLeft', _$marginLeft, opt: true);
+  static double? _$marginRight(StructuredContentStyle v) => v.marginRight;
   static const Field<StructuredContentStyle, double> _f$marginRight =
-      Field('marginRight', _$marginRight, opt: true, def: 0);
-  static double _$marginBottom(StructuredContentStyle v) => v.marginBottom;
+      Field('marginRight', _$marginRight, opt: true);
+  static double? _$marginBottom(StructuredContentStyle v) => v.marginBottom;
   static const Field<StructuredContentStyle, double> _f$marginBottom =
-      Field('marginBottom', _$marginBottom, opt: true, def: 0);
-  static String _$listStyleType(StructuredContentStyle v) => v.listStyleType;
+      Field('marginBottom', _$marginBottom, opt: true);
+  static String? _$padding(StructuredContentStyle v) => v.padding;
+  static const Field<StructuredContentStyle, String> _f$padding =
+      Field('padding', _$padding, opt: true);
+  static String? _$paddingTop(StructuredContentStyle v) => v.paddingTop;
+  static const Field<StructuredContentStyle, String> _f$paddingTop =
+      Field('paddingTop', _$paddingTop, opt: true);
+  static String? _$paddingLeft(StructuredContentStyle v) => v.paddingLeft;
+  static const Field<StructuredContentStyle, String> _f$paddingLeft =
+      Field('paddingLeft', _$paddingLeft, opt: true);
+  static String? _$paddingRight(StructuredContentStyle v) => v.paddingRight;
+  static const Field<StructuredContentStyle, String> _f$paddingRight =
+      Field('paddingRight', _$paddingRight, opt: true);
+  static String? _$paddingBottom(StructuredContentStyle v) => v.paddingBottom;
+  static const Field<StructuredContentStyle, String> _f$paddingBottom =
+      Field('paddingBottom', _$paddingBottom, opt: true);
+  static String? _$borderColor(StructuredContentStyle v) => v.borderColor;
+  static const Field<StructuredContentStyle, String> _f$borderColor =
+      Field('borderColor', _$borderColor, opt: true);
+  static String? _$borderStyle(StructuredContentStyle v) => v.borderStyle;
+  static const Field<StructuredContentStyle, String> _f$borderStyle =
+      Field('borderStyle', _$borderStyle, opt: true);
+  static String? _$borderWidth(StructuredContentStyle v) => v.borderWidth;
+  static const Field<StructuredContentStyle, String> _f$borderWidth =
+      Field('borderWidth', _$borderWidth, opt: true);
+  static String? _$borderRadius(StructuredContentStyle v) => v.borderRadius;
+  static const Field<StructuredContentStyle, String> _f$borderRadius =
+      Field('borderRadius', _$borderRadius, opt: true);
+  static String? _$listStyleType(StructuredContentStyle v) => v.listStyleType;
   static const Field<StructuredContentStyle, String> _f$listStyleType =
-      Field('listStyleType', _$listStyleType, opt: true, def: 'disc');
+      Field('listStyleType', _$listStyleType, opt: true);
 
   @override
-  final Map<Symbol, Field<StructuredContentStyle, dynamic>> fields = const {
+  final MappableFields<StructuredContentStyle> fields = const {
     #fontStyle: _f$fontStyle,
     #fontWeight: _f$fontWeight,
     #fontSize: _f$fontSize,
+    #color: _f$color,
+    #background: _f$background,
+    #backgroundColor: _f$backgroundColor,
     #textDecorationLine: _f$textDecorationLine,
+    #textDecorationStyle: _f$textDecorationStyle,
+    #textDecorationColor: _f$textDecorationColor,
     #verticalAlign: _f$verticalAlign,
     #textAlign: _f$textAlign,
+    #wordBreak: _f$wordBreak,
+    #whiteSpace: _f$whiteSpace,
+    #margin: _f$margin,
     #marginTop: _f$marginTop,
     #marginLeft: _f$marginLeft,
     #marginRight: _f$marginRight,
     #marginBottom: _f$marginBottom,
+    #padding: _f$padding,
+    #paddingTop: _f$paddingTop,
+    #paddingLeft: _f$paddingLeft,
+    #paddingRight: _f$paddingRight,
+    #paddingBottom: _f$paddingBottom,
+    #borderColor: _f$borderColor,
+    #borderStyle: _f$borderStyle,
+    #borderWidth: _f$borderWidth,
+    #borderRadius: _f$borderRadius,
     #listStyleType: _f$listStyleType,
   };
 
@@ -1269,13 +1370,30 @@ class StructuredContentStyleMapper
         fontStyle: data.dec(_f$fontStyle),
         fontWeight: data.dec(_f$fontWeight),
         fontSize: data.dec(_f$fontSize),
+        color: data.dec(_f$color),
+        background: data.dec(_f$background),
+        backgroundColor: data.dec(_f$backgroundColor),
         textDecorationLine: data.dec(_f$textDecorationLine),
+        textDecorationStyle: data.dec(_f$textDecorationStyle),
+        textDecorationColor: data.dec(_f$textDecorationColor),
         verticalAlign: data.dec(_f$verticalAlign),
         textAlign: data.dec(_f$textAlign),
+        wordBreak: data.dec(_f$wordBreak),
+        whiteSpace: data.dec(_f$whiteSpace),
+        margin: data.dec(_f$margin),
         marginTop: data.dec(_f$marginTop),
         marginLeft: data.dec(_f$marginLeft),
         marginRight: data.dec(_f$marginRight),
         marginBottom: data.dec(_f$marginBottom),
+        padding: data.dec(_f$padding),
+        paddingTop: data.dec(_f$paddingTop),
+        paddingLeft: data.dec(_f$paddingLeft),
+        paddingRight: data.dec(_f$paddingRight),
+        paddingBottom: data.dec(_f$paddingBottom),
+        borderColor: data.dec(_f$borderColor),
+        borderStyle: data.dec(_f$borderStyle),
+        borderWidth: data.dec(_f$borderWidth),
+        borderRadius: data.dec(_f$borderRadius),
         listStyleType: data.dec(_f$listStyleType));
   }
 
@@ -1314,10 +1432,8 @@ mixin StructuredContentStyleMappable {
 
   @override
   bool operator ==(Object other) {
-    return identical(this, other) ||
-        (runtimeType == other.runtimeType &&
-            StructuredContentStyleMapper.ensureInitialized()
-                .isValueEqual(this as StructuredContentStyle, other));
+    return StructuredContentStyleMapper.ensureInitialized()
+        .equalsValue(this as StructuredContentStyle, other);
   }
 
   @override
@@ -1338,19 +1454,36 @@ abstract class StructuredContentStyleCopyWith<
     $R,
     $In extends StructuredContentStyle,
     $Out> implements ClassCopyWith<$R, $In, $Out> {
-  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>?
       get textDecorationLine;
   $R call(
       {String? fontStyle,
       String? fontWeight,
       String? fontSize,
+      String? color,
+      String? background,
+      String? backgroundColor,
       List<String>? textDecorationLine,
+      String? textDecorationStyle,
+      String? textDecorationColor,
       String? verticalAlign,
       String? textAlign,
+      String? wordBreak,
+      String? whiteSpace,
+      String? margin,
       double? marginTop,
       double? marginLeft,
       double? marginRight,
       double? marginBottom,
+      String? padding,
+      String? paddingTop,
+      String? paddingLeft,
+      String? paddingRight,
+      String? paddingBottom,
+      String? borderColor,
+      String? borderStyle,
+      String? borderWidth,
+      String? borderRadius,
       String? listStyleType});
   StructuredContentStyleCopyWith<$R2, $In, $Out2> $chain<$R2, $Out2>(
       Then<$Out2, $R2> t);
@@ -1366,50 +1499,108 @@ class _StructuredContentStyleCopyWithImpl<$R, $Out>
   late final ClassMapperBase<StructuredContentStyle> $mapper =
       StructuredContentStyleMapper.ensureInitialized();
   @override
-  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>
-      get textDecorationLine => ListCopyWith(
-          $value.textDecorationLine,
-          (v, t) => ObjectCopyWith(v, $identity, t),
-          (v) => call(textDecorationLine: v));
+  ListCopyWith<$R, String, ObjectCopyWith<$R, String, String>>?
+      get textDecorationLine => $value.textDecorationLine != null
+          ? ListCopyWith(
+              $value.textDecorationLine!,
+              (v, t) => ObjectCopyWith(v, $identity, t),
+              (v) => call(textDecorationLine: v))
+          : null;
   @override
   $R call(
-          {String? fontStyle,
-          String? fontWeight,
-          String? fontSize,
-          List<String>? textDecorationLine,
-          String? verticalAlign,
-          String? textAlign,
-          double? marginTop,
-          double? marginLeft,
-          double? marginRight,
-          double? marginBottom,
-          String? listStyleType}) =>
+          {Object? fontStyle = $none,
+          Object? fontWeight = $none,
+          Object? fontSize = $none,
+          Object? color = $none,
+          Object? background = $none,
+          Object? backgroundColor = $none,
+          Object? textDecorationLine = $none,
+          Object? textDecorationStyle = $none,
+          Object? textDecorationColor = $none,
+          Object? verticalAlign = $none,
+          Object? textAlign = $none,
+          Object? wordBreak = $none,
+          Object? whiteSpace = $none,
+          Object? margin = $none,
+          Object? marginTop = $none,
+          Object? marginLeft = $none,
+          Object? marginRight = $none,
+          Object? marginBottom = $none,
+          Object? padding = $none,
+          Object? paddingTop = $none,
+          Object? paddingLeft = $none,
+          Object? paddingRight = $none,
+          Object? paddingBottom = $none,
+          Object? borderColor = $none,
+          Object? borderStyle = $none,
+          Object? borderWidth = $none,
+          Object? borderRadius = $none,
+          Object? listStyleType = $none}) =>
       $apply(FieldCopyWithData({
-        if (fontStyle != null) #fontStyle: fontStyle,
-        if (fontWeight != null) #fontWeight: fontWeight,
-        if (fontSize != null) #fontSize: fontSize,
-        if (textDecorationLine != null) #textDecorationLine: textDecorationLine,
-        if (verticalAlign != null) #verticalAlign: verticalAlign,
-        if (textAlign != null) #textAlign: textAlign,
-        if (marginTop != null) #marginTop: marginTop,
-        if (marginLeft != null) #marginLeft: marginLeft,
-        if (marginRight != null) #marginRight: marginRight,
-        if (marginBottom != null) #marginBottom: marginBottom,
-        if (listStyleType != null) #listStyleType: listStyleType
+        if (fontStyle != $none) #fontStyle: fontStyle,
+        if (fontWeight != $none) #fontWeight: fontWeight,
+        if (fontSize != $none) #fontSize: fontSize,
+        if (color != $none) #color: color,
+        if (background != $none) #background: background,
+        if (backgroundColor != $none) #backgroundColor: backgroundColor,
+        if (textDecorationLine != $none)
+          #textDecorationLine: textDecorationLine,
+        if (textDecorationStyle != $none)
+          #textDecorationStyle: textDecorationStyle,
+        if (textDecorationColor != $none)
+          #textDecorationColor: textDecorationColor,
+        if (verticalAlign != $none) #verticalAlign: verticalAlign,
+        if (textAlign != $none) #textAlign: textAlign,
+        if (wordBreak != $none) #wordBreak: wordBreak,
+        if (whiteSpace != $none) #whiteSpace: whiteSpace,
+        if (margin != $none) #margin: margin,
+        if (marginTop != $none) #marginTop: marginTop,
+        if (marginLeft != $none) #marginLeft: marginLeft,
+        if (marginRight != $none) #marginRight: marginRight,
+        if (marginBottom != $none) #marginBottom: marginBottom,
+        if (padding != $none) #padding: padding,
+        if (paddingTop != $none) #paddingTop: paddingTop,
+        if (paddingLeft != $none) #paddingLeft: paddingLeft,
+        if (paddingRight != $none) #paddingRight: paddingRight,
+        if (paddingBottom != $none) #paddingBottom: paddingBottom,
+        if (borderColor != $none) #borderColor: borderColor,
+        if (borderStyle != $none) #borderStyle: borderStyle,
+        if (borderWidth != $none) #borderWidth: borderWidth,
+        if (borderRadius != $none) #borderRadius: borderRadius,
+        if (listStyleType != $none) #listStyleType: listStyleType
       }));
   @override
   StructuredContentStyle $make(CopyWithData data) => StructuredContentStyle(
       fontStyle: data.get(#fontStyle, or: $value.fontStyle),
       fontWeight: data.get(#fontWeight, or: $value.fontWeight),
       fontSize: data.get(#fontSize, or: $value.fontSize),
+      color: data.get(#color, or: $value.color),
+      background: data.get(#background, or: $value.background),
+      backgroundColor: data.get(#backgroundColor, or: $value.backgroundColor),
       textDecorationLine:
           data.get(#textDecorationLine, or: $value.textDecorationLine),
+      textDecorationStyle:
+          data.get(#textDecorationStyle, or: $value.textDecorationStyle),
+      textDecorationColor:
+          data.get(#textDecorationColor, or: $value.textDecorationColor),
       verticalAlign: data.get(#verticalAlign, or: $value.verticalAlign),
       textAlign: data.get(#textAlign, or: $value.textAlign),
+      wordBreak: data.get(#wordBreak, or: $value.wordBreak),
+      whiteSpace: data.get(#whiteSpace, or: $value.whiteSpace),
+      margin: data.get(#margin, or: $value.margin),
       marginTop: data.get(#marginTop, or: $value.marginTop),
       marginLeft: data.get(#marginLeft, or: $value.marginLeft),
       marginRight: data.get(#marginRight, or: $value.marginRight),
       marginBottom: data.get(#marginBottom, or: $value.marginBottom),
+      padding: data.get(#padding, or: $value.padding),
+      paddingTop: data.get(#paddingTop, or: $value.paddingTop),
+      paddingLeft: data.get(#paddingLeft, or: $value.paddingLeft),
+      paddingRight: data.get(#paddingRight, or: $value.paddingRight),
+      paddingBottom: data.get(#paddingBottom, or: $value.paddingBottom),
+      borderColor: data.get(#borderColor, or: $value.borderColor),
+      borderStyle: data.get(#borderStyle, or: $value.borderStyle),
+      borderWidth: data.get(#borderWidth, or: $value.borderWidth),
+      borderRadius: data.get(#borderRadius, or: $value.borderRadius),
       listStyleType: data.get(#listStyleType, or: $value.listStyleType));
 
   @override
@@ -1462,8 +1653,7 @@ class StructuredContentTableElementMapper
       Field('lang', _$lang, opt: true);
 
   @override
-  final Map<Symbol, Field<StructuredContentTableElement, dynamic>> fields =
-      const {
+  final MappableFields<StructuredContentTableElement> fields = const {
     #tag: _f$tag,
     #content: _f$content,
     #style: _f$style,
@@ -1529,10 +1719,8 @@ mixin StructuredContentTableElementMappable {
 
   @override
   bool operator ==(Object other) {
-    return identical(this, other) ||
-        (runtimeType == other.runtimeType &&
-            StructuredContentTableElementMapper.ensureInitialized()
-                .isValueEqual(this as StructuredContentTableElement, other));
+    return StructuredContentTableElementMapper.ensureInitialized()
+        .equalsValue(this as StructuredContentTableElement, other);
   }
 
   @override

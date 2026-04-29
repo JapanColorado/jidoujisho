@@ -7,7 +7,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fluttertoast/fluttertoast.dart';
-import 'package:local_assets_server/local_assets_server.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:spaces/spaces.dart';
 import 'package:yuuna/creator.dart';
@@ -172,7 +171,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
   }
 
   Widget buildBody() {
-    AsyncValue<LocalAssetsServer> server =
+    AsyncValue<TtuAssetsServer> server =
         ref.watch(ttuServerProvider(appModel.targetLanguage));
 
     return server.when(
@@ -274,7 +273,7 @@ class _ReaderTtuSourcePageState extends BaseSourcePageState<ReaderTtuSourcePage>
     Fluttertoast.showToast(msg: t.file_downloaded(name: _suggestedFilename));
   }
 
-  Widget buildReaderArea(LocalAssetsServer server) {
+  Widget buildReaderArea(TtuAssetsServer server) {
     return InAppWebView(
       initialUrlRequest: URLRequest(
         url: WebUri(
