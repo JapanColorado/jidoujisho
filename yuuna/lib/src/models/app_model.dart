@@ -430,6 +430,7 @@ class AppModel with ChangeNotifier {
 
   /// Shows when the current mode is a light theme.
   ThemeData get theme => ThemeData(
+        useMaterial3: false,
         scaffoldBackgroundColor: Colors.white,
         unselectedWidgetColor: Colors.black54,
         textTheme: textTheme,
@@ -464,7 +465,7 @@ class AppModel with ChangeNotifier {
           color: Colors.white,
           shape: RoundedRectangleBorder(),
         ),
-        dialogTheme: const DialogTheme(
+        dialogTheme: const DialogThemeData(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(),
         ),
@@ -513,6 +514,7 @@ class AppModel with ChangeNotifier {
 
   /// Shows when the current mode is a dark theme.
   ThemeData get darkTheme => ThemeData(
+        useMaterial3: false,
         scaffoldBackgroundColor: Colors.black,
         textTheme: textTheme,
         switchTheme: SwitchThemeData(
@@ -546,7 +548,7 @@ class AppModel with ChangeNotifier {
           color: Color.fromARGB(255, 30, 30, 30),
           shape: RoundedRectangleBorder(),
         ),
-        dialogTheme: const DialogTheme(
+        dialogTheme: const DialogThemeData(
           backgroundColor: Color.fromARGB(255, 30, 30, 30),
           shape: RoundedRectangleBorder(),
         ),

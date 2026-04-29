@@ -246,10 +246,10 @@ packages:
     dependency: transitive
     description:
       name: characters
-      sha256: f71061c654a3380576a52b451dd5532377954cf9dbd272a78fc8479606670803
+      sha256: faf38497bda5ead2a8c7615f4f7939df04333478bf32e4173fcb06d428b5716b
       url: "https://pub.dev"
     source: hosted
-    version: "1.4.0"
+    version: "1.4.1"
   chat_gpt_sdk:
     dependency: "direct main"
     description:
@@ -596,11 +596,9 @@ packages:
   filesystem_picker:
     dependency: "direct main"
     description:
-      path: package
-      ref: jidoujisho
-      resolved-ref: aedba6189cd6e995c1ff0f8451d1d5e31c2ce7c1
-      url: "https://github.com/arianneorpilla/filesystem_picker"
-    source: git
+      path: "packages/filesystem_picker"
+      relative: true
+    source: path
     version: "2.0.0-nullsafety.0"
   fixnum:
     dependency: transitive
@@ -698,10 +696,9 @@ packages:
   flutter_ffmpeg:
     dependency: "direct main"
     description:
-      name: flutter_ffmpeg
-      sha256: "8d8bb4551cf76384748ba6948739c1e56a9164794e48f06cbfb0ff1bfb058b5f"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/flutter_ffmpeg"
+      relative: true
+    source: path
     version: "0.4.2"
   flutter_gpt_tokenizer:
     dependency: "direct main"
@@ -786,11 +783,9 @@ packages:
   flutter_inappwebview:
     dependency: "direct main"
     description:
-      path: "."
-      ref: ffd182431017ec919ece3f80bf5e22a9286189af
-      resolved-ref: ffd182431017ec919ece3f80bf5e22a9286189af
-      url: "https://github.com/arianneorpilla/flutter_inappwebview"
-    source: git
+      path: "packages/flutter_inappwebview"
+      relative: true
+    source: path
     version: "6.0.0-beta.25"
   flutter_inappwebview_internal_annotations:
     dependency: transitive
@@ -883,11 +878,9 @@ packages:
   flutter_vlc_player:
     dependency: "direct main"
     description:
-      path: flutter_vlc_player
-      ref: "013632b4cc591c68ced04ccc0244c2770daca633"
-      resolved-ref: "013632b4cc591c68ced04ccc0244c2770daca633"
-      url: "https://github.com/arianneorpilla/flutter_vlc_player"
-    source: git
+      path: "packages/flutter_vlc_player"
+      relative: true
+    source: path
     version: "7.2.0"
   flutter_vlc_player_platform_interface:
     dependency: transitive
@@ -905,10 +898,9 @@ packages:
   fluttertoast:
     dependency: "direct main"
     description:
-      name: fluttertoast
-      sha256: "95f349437aeebe524ef7d6c9bde3e6b4772717cf46a0eb6a3ceaddc740b297cc"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/fluttertoast"
+      relative: true
+    source: path
     version: "8.2.8"
   freezed_annotation:
     dependency: "direct overridden"
@@ -1238,22 +1230,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.2"
-  local_assets_server:
-    dependency: "direct main"
-    description:
-      name: local_assets_server
-      sha256: "1fdbd0bd48870556da0f03254c5d5b4be72cafab15c0367c5fec7a5c80f5eb08"
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.2+12"
   logging:
     dependency: "direct overridden"
     description:
       name: logging
-      sha256: "04094f2eb032cbb06c6f6e8d3607edcfcb0455e2bb6cbc010cb01171dcb64e6d"
+      sha256: c8245ada5f1717ed44271ed1c26b8ce85ca3228fd2ffdb75468ab01979309d61
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.1"
+    version: "1.3.0"
   marquee:
     dependency: "direct main"
     description:
@@ -1274,26 +1258,25 @@ packages:
     dependency: transitive
     description:
       name: material_color_utilities
-      sha256: f7142bb1154231d7ea5f96bc7bde4bda2a0945d2806bb11670e30b850d56bdec
+      sha256: "9c337007e82b1889149c82ed242ed1cb24a66044e30979c44912381e9be4c48b"
       url: "https://pub.dev"
     source: hosted
-    version: "0.11.1"
+    version: "0.13.0"
   material_floating_search_bar:
     dependency: "direct main"
     description:
       path: "."
-      ref: jidoujisho
-      resolved-ref: "450750544f09582cf18728f31988e38d2e0716ce"
+      ref: "3d65e795da26d74193dc2370e6247c29dc137bf4"
+      resolved-ref: "3d65e795da26d74193dc2370e6247c29dc137bf4"
       url: "https://github.com/arianneorpilla/material_floating_search_bar"
     source: git
     version: "0.3.7"
   mecab_dart:
     dependency: "direct main"
     description:
-      name: mecab_dart
-      sha256: b3d6ab4153a1015e06205be200c8ea2e83e545263acc987b16b814172d92230f
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/mecab_dart"
+      relative: true
+    source: path
     version: "0.1.3"
   meta:
     dependency: transitive
@@ -1304,7 +1287,7 @@ packages:
     source: hosted
     version: "1.17.0"
   mime:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: mime
       sha256: "801fd0b26f14a4a58ccb09d5892c3fbdeff209594300a542492cf13fba9d247a"
@@ -1338,11 +1321,9 @@ packages:
   nowplaying:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "290ee1097d67cafc50f3aba1ba5bba01e758d877"
-      resolved-ref: "290ee1097d67cafc50f3aba1ba5bba01e758d877"
-      url: "https://github.com/arianneorpilla/nowplaying"
-    source: git
+      path: "packages/nowplaying"
+      relative: true
+    source: path
     version: "2.0.6"
   objective_c:
     dependency: transitive
@@ -1369,12 +1350,11 @@ packages:
     source: hosted
     version: "2.2.0"
   package_info:
-    dependency: transitive
+    dependency: "direct overridden"
     description:
-      name: package_info
-      sha256: "6c07d9d82c69e16afeeeeb6866fe43985a20b3b50df243091bfc4a4ad2b03b75"
-      url: "https://pub.dev"
-    source: hosted
+      path: "packages/package_info"
+      relative: true
+    source: path
     version: "2.0.2"
   package_info_plus:
     dependency: "direct main"
@@ -1456,14 +1436,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.3.0"
-  pedantic:
-    dependency: transitive
-    description:
-      name: pedantic
-      sha256: "67fc27ed9639506c856c840ccce7594d0bdcd91bc8d53d6e52359449a1d50602"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.11.1"
   permission_handler:
     dependency: "direct main"
     description:
@@ -1595,11 +1567,9 @@ packages:
   receive_intent:
     dependency: "direct main"
     description:
-      path: "."
-      ref: "3854d07f8f4e9d5a78589639b18b5d454ddf54a0"
-      resolved-ref: "3854d07f8f4e9d5a78589639b18b5d454ddf54a0"
-      url: "https://github.com/arianneorpilla/receive_intent"
-    source: git
+      path: "packages/receive_intent"
+      relative: true
+    source: path
     version: "0.2.3"
   record_mp3_plus:
     dependency: "direct overridden"
@@ -1644,11 +1614,9 @@ packages:
   ruby_text:
     dependency: "direct main"
     description:
-      path: "."
-      ref: cb723f87c9ac575aa735b40016c0ffb3242d921e
-      resolved-ref: cb723f87c9ac575aa735b40016c0ffb3242d921e
-      url: "https://github.com/arianneorpilla/RubyText"
-    source: git
+      path: "packages/ruby_text"
+      relative: true
+    source: path
     version: "3.0.1"
   rxdart:
     dependency: transitive

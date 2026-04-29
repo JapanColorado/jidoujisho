@@ -49,7 +49,7 @@ ext {
 }
 
 subprojects {
-    def configureAndroid = {
+    def configureLibraryAndroid = {
         if (project.plugins.hasPlugin("com.android.library")) {
             project.android {
                  compileSdkVersion 36
@@ -57,6 +57,24 @@ subprojects {
                  compileOptions {
                     sourceCompatibility JavaVersion.VERSION_17
                     targetCompatibility JavaVersion.VERSION_17
+                }
+
+                // AGP 8 requires every module to declare a namespace.
+                // Many older Flutter plugins still rely on the legacy
+                // `package` attribute in AndroidManifest.xml — derive a
+                // namespace from that when the plugin author has not migrated.
+                if (namespace == null) {
+                    def manifestFile = file("src/main/AndroidManifest.xml")
+                    if (manifestFile.exists()) {
+                        def manifest = new XmlSlurper().parse(manifestFile)
+                        def pkg = manifest.@package?.text()
+                        if (pkg) {
+                            namespace = pkg
+                        }
+                    }
+                    if (namespace == null && project.group) {
+                        namespace = project.group.toString()
+                    }
                 }
             }
         }
@@ -70,8 +88,8 @@ subprojects {
     }
 
     if (project.state.executed) {
-        configureAndroid()
+        configureLibraryAndroid()
     } else {
-        project.afterEvaluate(configureAndroid)
+        project.afterEvaluate(configureLibraryAndroid)
     }
 }

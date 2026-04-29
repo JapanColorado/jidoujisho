@@ -9,6 +9,12 @@
 .history
 .svn/
 
+# Project-scoped Flutter / Android SDK install (~5 GB, see CLAUDE.md)
+.toolchain/
+
+# Claude Code session data (per-developer; never commit)
+.claude/
+
 # IntelliJ related
 *.iml
 *.ipr

@@ -65,22 +65,48 @@ class YomichanFormat extends DictionaryFormat {
 
     final document = dom.Document.html('');
     document.body?.append(node);
-    for (final e in document.querySelectorAll('li')) {
-      final css = e.bs4.findParent('ul')?.attributes['style'] ?? '';
-      final text = e.text;
-      final name = css
-              .split(';')
-              .where((e) => e.contains('list-style-type'))
-              .firstOrNull
-              ?.split(':')
-              .lastOrNull ??
-          'square';
 
-      final counterStyle = CounterStyleRegistry.lookup(name);
-      final counter = counterStyle.generateMarkerContent(0);
-      e.text = '$counter $text';
+    // Walk every <ul>/<ol> and rewrite its <li> children with the right
+    // marker. Iterating per-list (not flat over all <li>s) lets us track a
+    // separate index per list, so ordered lists number correctly.
+    for (final list in document.querySelectorAll('ul, ol')) {
+      final css = list.attributes['style'] ?? '';
+      final declared = css
+          .split(';')
+          .where((e) => e.contains('list-style-type'))
+          .firstOrNull
+          ?.split(':')
+          .lastOrNull
+          ?.trim();
+      // Default is the user-agent default for the list type — `decimal` for
+      // <ol>, `disc` for <ul>.
+      final styleName = declared ?? (list.localName == 'ol' ? 'decimal' : 'disc');
+      final counterStyle = CounterStyleRegistry.lookup(styleName);
+
+      var index = 0;
+      for (final li in list.children.where((c) => c.localName == 'li')) {
+        final text = li.text;
+        final marker = counterStyle.generateMarkerContent(index);
+        li.text = '$marker $text';
+        index++;
+      }
     }
-    document.querySelectorAll('table').map((e) => e.remove());
+
+    // Render tables as tab-separated text rows so card export keeps tabular
+    // content instead of dropping it entirely. (The previous
+    // `.map((e) => e.remove())` was a no-op — `.map` is lazy in Dart.)
+    for (final table in document.querySelectorAll('table')) {
+      final lines = <String>[];
+      for (final row in table.querySelectorAll('tr')) {
+        final cells = row
+            .querySelectorAll('td, th')
+            .map((c) => c.text.trim())
+            .toList();
+        lines.add(cells.join('\t'));
+      }
+      table.replaceWith(dom.Text(lines.join('\n')));
+    }
+
     final html = document.body?.innerHtml ?? '';
 
     return BeautifulSoup(html).getText(separator: '\n');
@@ -179,6 +205,170 @@ Future<String> prepareNameYomichanFormat(PrepareDirectoryParams params) async {
   return dictionaryName;
 }
 
+/// One sense extracted from a Yomitan structured-content definition by
+/// [_splitDefinitionBySense]. Carries the JSON-encoded definition for that
+/// sense (with inline tag spans removed) plus the lifted tags pulled out of
+/// those spans — these become chip rows on the entry.
+class _SenseSplit {
+  const _SenseSplit(this.definition, this.tags);
+
+  final String definition;
+  final List<_LiftedTag> tags;
+}
+
+/// One inline tag span lifted from a sense's body — Jitendex's
+/// `<span data-content="*-info" data-code="…">label</span>` markers carry
+/// POS/misc/field/dialect labels we want to show as chips.
+class _LiftedTag {
+  const _LiftedTag({
+    required this.name,
+    required this.notes,
+    required this.category,
+  });
+
+  final String name;     // chip text — span's text content (e.g. "pronoun")
+  final String notes;    // tooltip — span's title attr (e.g. "pronoun")
+  final String category; // colour category (see DictionaryTag.color)
+}
+
+/// Map a Jitendex `data.content` marker to a [DictionaryTag.category] value
+/// used for chip colouring.
+String _categoryForInfoMarker(String marker) {
+  if (marker.startsWith('part-of-speech')) return 'partOfSpeech';
+  if (marker.startsWith('misc')) return 'frequent';
+  if (marker.startsWith('field')) return 'expression';
+  if (marker.startsWith('dialect')) return 'expression';
+  return 'frequent';
+}
+
+/// Walk a Yomitan structured-content definition and split on the outer
+/// `<ol>`/`<ul>` of senses (the shape Jitendex and other JMdict-derived
+/// dictionaries use). Returns one [_SenseSplit] per top-level `<li>`.
+///
+/// If the definition is plain text, isn't structured-content JSON, or doesn't
+/// match the sense-list shape, the original is returned unchanged as a
+/// single-element list — so non-Jitendex dictionaries are unaffected.
+List<_SenseSplit> _splitDefinitionBySense(String rawDefinition) {
+  dynamic decoded;
+  try {
+    decoded = jsonDecode(rawDefinition);
+  } catch (_) {
+    return [_SenseSplit(rawDefinition, const [])];
+  }
+
+  // Jitendex's top-level shape is a List (e.g. [<ul sense-groups>,
+  // <div attribution>]) — older shapes wrap in a single Map. Search both
+  // forms recursively for a `<ol>`/`<ul>` with two or more `<li>` children
+  // that we can treat as the sense list.
+  final liChildren = _findSenseListChildren(decoded);
+  if (liChildren == null) {
+    return [_SenseSplit(rawDefinition, const [])];
+  }
+
+  return liChildren.map((li) {
+    // _extractAndStripTagSpans mutates in place: it pulls every Jitendex
+    // tag-info span out of the tree (so they don't render in the body) and
+    // returns their codes (so they can become chips on the entry).
+    final liContent = (li as Map)['content'];
+    final codes = _extractAndStripTagSpans(liContent);
+    return _SenseSplit(jsonEncode(liContent), codes);
+  }).toList();
+}
+
+/// Recursively search [node] for the outermost `<ol>`/`<ul>` whose
+/// `data.content == "sense-groups"` — Jitendex's canonical marker for the
+/// outer sense list. Returns the `<li>` children with that marker, or null
+/// if absent (depth-bounded to avoid pathological cycles).
+///
+/// Restricting to the explicit marker prevents accidentally splitting on
+/// the inner sub-sense `<ol>` (the ① ② ③ list) inside a single-POS entry.
+List<dynamic>? _findSenseListChildren(dynamic node, [int depth = 0]) {
+  if (depth > 8) return null;
+  if (node is Map) {
+    final tag = node['tag'];
+    final content = node['content'];
+    final data = node['data'];
+    if ((tag == 'ol' || tag == 'ul') &&
+        content is List &&
+        data is Map &&
+        data['content'] == 'sense-groups') {
+      final lis =
+          content.where((c) => c is Map && c['tag'] == 'li').toList();
+      if (lis.length >= 2) return lis;
+    }
+    if (content != null) return _findSenseListChildren(content, depth + 1);
+  } else if (node is List) {
+    for (final child in node) {
+      final found = _findSenseListChildren(child, depth + 1);
+      if (found != null) return found;
+    }
+  }
+  return null;
+}
+
+/// Walk a Yomitan structured-content subtree and:
+///  1. Collect every Jitendex tag span — `<span data-content="*-info"
+///     data-code="…">label</span>` — into a list of [_LiftedTag] records
+///     using the span's text content as the chip name and its `title`
+///     attribute as the tooltip.
+///  2. Remove those spans from the tree in place (so they don't double up
+///     as plain text in the rendered entry body once they're chips).
+///
+/// Returns the lifted tags in document order with duplicates (by name)
+/// removed — preserves the order Jitendex emits them so chips render the
+/// same way every time.
+List<_LiftedTag> _extractAndStripTagSpans(dynamic node) {
+  final tags = <_LiftedTag>[];
+  final seen = <String>{};
+  _walkAndStripTagSpans(node, tags, seen);
+  return tags;
+}
+
+void _walkAndStripTagSpans(
+  dynamic node,
+  List<_LiftedTag> tags,
+  Set<String> seen,
+) {
+  if (node is List) {
+    for (final child in node) {
+      _walkAndStripTagSpans(child, tags, seen);
+    }
+    node.removeWhere((c) {
+      if (c is! Map) return false;
+      if (c['tag'] != 'span') return false;
+      final data = c['data'];
+      if (data is! Map) return false;
+      final marker = data['content'];
+      if (marker is! String || !marker.endsWith('-info')) return false;
+
+      // Span's text content becomes the chip name. It's typically a plain
+      // string ("pronoun", "kana"); guard against richer shapes by falling
+      // back to the data.code as a last resort.
+      final spanContent = c['content'];
+      String? name;
+      if (spanContent is String && spanContent.trim().isNotEmpty) {
+        name = spanContent.trim();
+      } else {
+        final code = data['code'];
+        if (code is String && code.isNotEmpty) name = code;
+      }
+      if (name == null) return true; // remove the span anyway
+
+      if (!seen.add(name)) return true; // dedupe but still strip
+
+      final title = c['title'];
+      tags.add(_LiftedTag(
+        name: name,
+        notes: title is String && title.isNotEmpty ? title : name,
+        category: _categoryForInfoMarker(marker),
+      ));
+      return true;
+    });
+  } else if (node is Map) {
+    _walkAndStripTagSpans(node['content'], tags, seen);
+  }
+}
+
 /// Top-level function for use in compute. See [DictionaryFormat] for details.
 void prepareEntriesYomichanFormat({
   required PrepareDictionaryParams params,
@@ -220,54 +410,88 @@ void prepareEntriesYomichanFormat({
         List<String> entryTagNames =
             spaceSeparatedDefinitionTags?.split(' ') ?? [];
         List<String> headingTagNames = spaceSeparatedTermTags.split(' ');
-        final List<String> definitions = rawDefinitions
+
+        // Split each raw definition on its top-level <ol>/<ul> of senses
+        // (Jitendex shape). Plain-text and single-sense definitions pass
+        // through unchanged as a single split.
+        final List<_SenseSplit> splits = rawDefinitions
             .map(YomichanFormat.processDefinition)
             .whereType<String>()
+            .expand(_splitDefinitionBySense)
             .toList();
+        if (splits.isEmpty) continue;
 
         int headingId = DictionaryHeading.hash(
           term: term,
           reading: reading,
         );
 
-        final entry = DictionaryEntry(
-          definitions: definitions,
-          popularity: popularity,
-          entryTagNames: entryTagNames,
-          headingTagNames: headingTagNames,
-        );
-
-        List<int> entryTagHashes = entryTagNames.map((name) {
-          int dictionaryId = params.dictionary.id;
-          return DictionaryTag.hash(dictionaryId: dictionaryId, name: name);
-        }).toList();
-
-        List<DictionaryTag> entryTags = isar.dictionaryTags
-            .getAllSync(entryTagHashes)
-            .whereType<DictionaryTag>()
-            .toList();
-
-        List<int> headingTagHashes = headingTagNames.map((name) {
-          int dictionaryId = params.dictionary.id;
-          return DictionaryTag.hash(dictionaryId: dictionaryId, name: name);
-        }).toList();
-
-        List<DictionaryTag> headingTags = isar.dictionaryTags
-            .getAllSync(headingTagHashes)
-            .whereType<DictionaryTag>()
-            .toList();
-
         DictionaryHeading heading =
             isar.dictionaryHeadings.getSync(headingId) ??
                 DictionaryHeading(term: term, reading: reading);
 
-        entry.tags.addAll(entryTags);
-        entry.heading.value = heading;
-        entry.dictionary.value = params.dictionary;
-        isar.dictionaryEntrys.putSync(entry);
-
-        heading.entries.add(entry);
+        // Heading tags are shared across all senses for this term/reading,
+        // so look them up once outside the per-split loop.
+        List<int> headingTagHashes = headingTagNames.map((name) {
+          int dictionaryId = params.dictionary.id;
+          return DictionaryTag.hash(dictionaryId: dictionaryId, name: name);
+        }).toList();
+        List<DictionaryTag> headingTags = isar.dictionaryTags
+            .getAllSync(headingTagHashes)
+            .whereType<DictionaryTag>()
+            .toList();
         heading.tags.addAll(headingTags);
+
+        // Create one DictionaryEntry per split. Each entry inherits the
+        // term-level entry tags plus every tag lifted out of the sense's
+        // inline `<span data-content="*-info">` markers (POS, misc, field,
+        // dialect — see `_extractAndStripTagSpans`). Jitendex's tag_bank
+        // doesn't predeclare these (it ships only 8 form-related tags), so
+        // we synthesize the DictionaryTag rows on the fly here — `putSync`
+        // is keyed by `(dictionaryId, name)` so duplicates across senses
+        // collapse into one row.
+        for (final split in splits) {
+          for (final t in split.tags) {
+            isar.dictionaryTags.putSync(DictionaryTag(
+              dictionaryId: params.dictionary.id,
+              name: t.name,
+              category: t.category,
+              sortingOrder: 0,
+              notes: t.notes,
+              popularity: 0,
+            ));
+          }
+
+          final List<String> mergedTagNames = [
+            ...entryTagNames,
+            ...split.tags.map((t) => t.name),
+          ];
+
+          final entry = DictionaryEntry(
+            definitions: [split.definition],
+            popularity: popularity,
+            entryTagNames: mergedTagNames,
+            headingTagNames: headingTagNames,
+          );
+
+          List<int> entryTagHashes = mergedTagNames.map((name) {
+            int dictionaryId = params.dictionary.id;
+            return DictionaryTag.hash(dictionaryId: dictionaryId, name: name);
+          }).toList();
+
+          List<DictionaryTag> entryTags = isar.dictionaryTags
+              .getAllSync(entryTagHashes)
+              .whereType<DictionaryTag>()
+              .toList();
+
+          entry.tags.addAll(entryTags);
+          entry.heading.value = heading;
+          entry.dictionary.value = params.dictionary;
+          isar.dictionaryEntrys.putSync(entry);
+
+          heading.entries.add(entry);
+        }
+
         isar.dictionaryHeadings.putSync(heading);
 
         n++;

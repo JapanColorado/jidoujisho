@@ -75,8 +75,15 @@ class DictionaryTermPage extends ConsumerWidget {
             (entry) => !dictionaryNamesByHidden[entry.dictionary.value!.name]!)
         .toList();
 
-    entries.sort((a, b) => dictionaryNamesByOrder[a.dictionary.value!.name]!
-        .compareTo(dictionaryNamesByOrder[b.dictionary.value!.name]!));
+    entries.sort((a, b) {
+      final dictCmp = dictionaryNamesByOrder[a.dictionary.value!.name]!
+          .compareTo(dictionaryNamesByOrder[b.dictionary.value!.name]!);
+      if (dictCmp != 0) return dictCmp;
+      // Within the same dictionary, prefer entries with higher popularity —
+      // Jitendex marks priority forms with popularity 200 vs. 0 for the
+      // less-common readings, so this surfaces the common usage first.
+      return b.popularity.compareTo(a.popularity);
+    });
 
     if (entries.isEmpty) {
       return const SliverPadding(padding: EdgeInsets.zero);
