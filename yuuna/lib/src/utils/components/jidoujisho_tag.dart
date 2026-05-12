@@ -59,8 +59,14 @@ class JidoujishoTag extends StatelessWidget {
               }
             : null,
         child: Container(
-          color: backgroundColor,
-          padding: Spacing.of(context).insets.all.small,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          padding: EdgeInsets.symmetric(
+            horizontal: Spacing.of(context).spaces.small,
+            vertical: Spacing.of(context).spaces.extraSmall,
+          ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -74,10 +80,10 @@ class JidoujishoTag extends StatelessWidget {
               Flexible(
                 child: Text(
                   text,
-                  style: Theme.of(context)
-                      .textTheme
-                      .labelSmall
-                      ?.copyWith(color: foregroundColor),
+                  style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                        color: foregroundColor,
+                        fontWeight: FontWeight.w500,
+                      ),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -86,14 +92,20 @@ class JidoujishoTag extends StatelessWidget {
               if (trailingText != null)
                 Flexible(
                   child: Container(
-                    padding: Spacing.of(context).insets.all.extraSmall,
-                    color: Colors.red.shade400,
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade400,
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                    padding: EdgeInsets.symmetric(
+                      horizontal: Spacing.of(context).spaces.extraSmall,
+                      vertical: Spacing.of(context).spaces.extraSmall,
+                    ),
                     child: Text(
                       trailingText!,
-                      style: Theme.of(context)
-                          .textTheme
-                          .labelSmall
-                          ?.copyWith(color: foregroundColor),
+                      style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                            color: foregroundColor,
+                            fontWeight: FontWeight.w500,
+                          ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),

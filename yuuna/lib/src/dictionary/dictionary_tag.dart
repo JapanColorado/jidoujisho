@@ -25,7 +25,7 @@ class DictionaryTag {
       name: dictionary.name,
       notes: '',
       sortingOrder: -100000000000,
-      category: 'frequent',
+      category: 'dictionary',
       popularity: 0,
     );
   }
@@ -59,26 +59,28 @@ class DictionaryTag {
   /// This score is also used to sort search results.
   final double popularity;
 
-  /// Get the color for this tag based on its category.
+  /// Get the color for this tag based on its category. Palette aligned with
+  /// Yomitan's pastel category colors so chips read on a dark scaffold and
+  /// each category is visually distinct.
   @ignore
   Color get color {
     switch (category) {
       case 'name':
-        return const Color(0xffd46a6a);
-      case 'expression':
-        return const Color(0xffff4d4d);
-      case 'popular':
-        return const Color(0xff550000);
-      case 'partOfSpeech':
-        return const Color(0xff565656);
-      case 'archaism':
-        return const Color(0xFF616161);
+        return const Color(0xff7e57c2); // lavender (deepPurple shade400)
       case 'dictionary':
-        return const Color(0xffa15151);
+        return const Color(0xff7e57c2); // unify with name — dictionary brand
+      case 'expression':
+        return const Color(0xffc62828); // softer red (red shade800)
+      case 'popular':
+        return const Color(0xff4dd0e1); // teal — "priority form"
+      case 'partOfSpeech':
+        return const Color(0xff757575); // mid grey (grey shade600)
+      case 'archaism':
+        return const Color(0xff8d6e63); // warm brown-grey (brown shade400)
       case 'frequency':
-        return const Color(0xffd46a6a);
+        return const Color(0xffec407a); // pink shade400
       case 'frequent':
-        return const Color(0xff801515);
+        return const Color(0xffec407a); // pink — covers JMdict misc-info
     }
 
     return const Color(0xFF616161);
