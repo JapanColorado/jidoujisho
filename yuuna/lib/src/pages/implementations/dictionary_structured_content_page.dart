@@ -62,7 +62,16 @@ final dictionaryEntryHtmlProvider =
           // style to be carried through onto the new <div>.
           _addSenseSpacing(document);
           _flattenSenseLists(document);
+          // Drop Jitendex's "JMdict | Tatoeba" footer and any leftover
+          // *-info tag spans (POS / misc / field / dialect) before styling.
+          // Both pass through here only for dictionaries imported before the
+          // import-time fix in yomichan_dictionary_format.dart — those
+          // imports stored the un-stripped JSON, so we clean it at render
+          // time too. Re-imports never carry these.
+          _stripJitendexAttribution(document);
+          _stripInlineInfoSpans(document);
           _styleJitendexInlineMarkers(document);
+          _styleJitendexFormRestrictions(document);
           final html = document.body?.innerHtml ?? '';
 
           return html;
@@ -351,7 +360,91 @@ void _styleJitendexInlineMarkers(dom.Document document) {
         _appendInlineStyle(el, 'display:block');
         _appendInlineStyle(el, 'margin:6px 0');
         break;
+      case 'forms':
+        // The wrapper around the forms section — give it some top breathing
+        // room so it doesn't kiss the preceding gloss block.
+        _appendInlineStyle(el, 'display:block');
+        _appendInlineStyle(el, 'margin-top:10px');
+        break;
     }
+  }
+}
+
+/// Polish Jitendex's "form restriction" labels — `(しょく only)` style
+/// metadata that marks a sense-group as applying only to a specific
+/// reading/spelling combination. Jitendex emits:
+///
+/// ```
+/// <span title="valid only for these forms and/or readings">
+///   <span data-class="form-special">〔</span>
+///   <span lang="ja">しょく only</span>
+///   <span data-class="form-special">〕</span>
+/// </span>
+/// ```
+///
+/// Without styling the wrapping span renders at full body weight on its own
+/// line, drowning out the gloss it qualifies. We mute it: small, italic,
+/// dimmed colour — same treatment as Yomitan's web UI gives via Jitendex's
+/// own CSS. The bracket spans (`data-class="form-special"`) are styled
+/// directly so the same dim colour also covers the standalone `∅`
+/// ("no associated kanji forms") symbol that appears in the forms tables.
+void _styleJitendexFormRestrictions(dom.Document document) {
+  for (final el
+      in document.querySelectorAll('span[data-class="form-special"]')) {
+    _appendInlineStyle(el, 'color:#9aa0a6');
+  }
+  for (final el in document.querySelectorAll('span[title]')) {
+    if (el.attributes['title'] !=
+        'valid only for these forms and/or readings') {
+      continue;
+    }
+    // flutter_html doesn't cascade inline styles from a parent <span> to
+    // its child elements — each child renders with its own resolved style.
+    // Apply the same muted styling to the outer wrap AND every descendant
+    // element so the inner `<span lang="ja">しょく only</span>` text is
+    // also dimmed, not just the outer wrap and the bracket characters.
+    const muted = [
+      'color:#9aa0a6',
+      'font-size:0.85em',
+      'font-style:italic',
+    ];
+    for (final style in muted) {
+      _appendInlineStyle(el, style);
+    }
+    _appendInlineStyle(el, 'margin-right:6px');
+    for (final descendant in el.querySelectorAll('*')) {
+      for (final style in muted) {
+        _appendInlineStyle(descendant, style);
+      }
+    }
+  }
+}
+
+/// Drop Jitendex's bottom-of-entry source attribution (`<div
+/// data-content="attribution">`, which renders as `JMdict | Tatoeba`). The
+/// dictionary name is already shown as the `Jitendex.org […]` chip above
+/// each entry, so the footer is redundant.
+void _stripJitendexAttribution(dom.Document document) {
+  for (final div in document.querySelectorAll('div[data-content="attribution"]')
+      .toList()) {
+    div.remove();
+  }
+}
+
+/// Drop Jitendex's inline tag spans (`<span data-content="part-of-speech-info">`
+/// and the `miscellaneous`/`field`/`dialect` siblings) that were stored in
+/// the raw JSON for dictionaries imported before the import-time strip in
+/// `yomichan_dictionary_format.dart` started lifting them into proper chips.
+/// Without this pass they render as plain text — concatenating with the next
+/// gloss into things like `1-dantransitive` or `nounspecial outlay`.
+///
+/// Re-imported dictionaries store the cleaned JSON, so this pass is a no-op
+/// for them.
+void _stripInlineInfoSpans(dom.Document document) {
+  for (final span in document.querySelectorAll('span[data-content]').toList()) {
+    final marker = span.attributes['data-content'];
+    if (marker == null || !marker.endsWith('-info')) continue;
+    span.remove();
   }
 }
 
@@ -381,6 +474,87 @@ final dictionaryResourceDirectoryProvider =
   return Directory(
       path.join(appModel.dictionaryResourceDirectory.path, '$dictionaryId'));
 });
+
+/// Renders the chip-style label and cell-status glyphs inside Jitendex's
+/// "forms" (spelling/reading variants) section. flutter_html can't draw
+/// chips via inline CSS reliably and ignores Yomitan's `::before`
+/// pseudo-elements that Jitendex uses to put glyphs into otherwise-empty
+/// `<td>` cells, so both are rendered as widgets here.
+///
+/// Two unrelated patterns share the same `<span>` host element:
+///
+/// * `<span data-content="forms-label">forms</span>` — the small grey pill
+///   that introduces the variants block.
+/// * `<span data-class="form-{pri,valid,rare,irr,old,out}">` (empty, with a
+///   `title`) — table-cell status markers. Jitendex's CSS draws the symbol
+///   via `::before`; we inject the glyph + colour ourselves so the cells
+///   aren't blank.
+class _JitendexFormsExtension extends HtmlExtension {
+  _JitendexFormsExtension({required this.fontSize});
+
+  final double fontSize;
+
+  /// Maps Jitendex's `form-*` cell classes to a (glyph, colour) pair.
+  /// Glyphs picked to be visually distinct and legible at small sizes:
+  ///  * `form-pri`   → ★ green   — high-priority preferred form
+  ///  * `form-valid` → ● green   — valid form/reading combination
+  ///  * `form-rare`  → ○ grey    — rare combination
+  ///  * `form-irr`   → △ amber   — irregular form
+  ///  * `form-old`   → 旧 brown  — old/kyūjitai form
+  ///  * `form-out`   → ✕ red    — archaic/obsolete reading
+  static const Map<String, _FormSymbol> _formClassSymbols = {
+    'form-pri': _FormSymbol('★', Color(0xff66bb6a)),
+    'form-valid': _FormSymbol('●', Color(0xff66bb6a)),
+    'form-rare': _FormSymbol('○', Color(0xff9e9e9e)),
+    'form-irr': _FormSymbol('△', Color(0xffffa726)),
+    'form-old': _FormSymbol('旧', Color(0xff8d6e63)),
+    'form-out': _FormSymbol('✕', Color(0xffe57373)),
+  };
+
+  @override
+  Set<String> get supportedTags => const {'span'};
+
+  @override
+  bool matches(ExtensionContext c) {
+    final el = c.element;
+    if (el == null) return false;
+    if (el.attributes['data-content'] == 'forms-label') return true;
+    final dataClass = el.attributes['data-class'];
+    return dataClass != null && _formClassSymbols.containsKey(dataClass);
+  }
+
+  @override
+  InlineSpan build(ExtensionContext c) {
+    final el = c.element!;
+    if (el.attributes['data-content'] == 'forms-label') {
+      final label = el.text.trim().isEmpty ? 'forms' : el.text.trim();
+      return WidgetSpan(
+        alignment: PlaceholderAlignment.middle,
+        child: JidoujishoTag(
+          text: label,
+          message: el.attributes['title'],
+          backgroundColor: const Color(0xff757575),
+        ),
+      );
+    }
+    final dataClass = el.attributes['data-class']!;
+    final symbol = _formClassSymbols[dataClass]!;
+    return TextSpan(
+      text: symbol.char,
+      style: TextStyle(
+        color: symbol.color,
+        fontSize: fontSize,
+        fontWeight: FontWeight.bold,
+      ),
+    );
+  }
+}
+
+class _FormSymbol {
+  const _FormSymbol(this.char, this.color);
+  final String char;
+  final Color color;
+}
 
 /// Renders Jitendex semantic callouts (See also, Note, Example sentence) as
 /// styled Flutter widgets instead of plain `<div>` blocks. Each callout type
@@ -604,6 +778,10 @@ class DictionaryHtmlWidget extends ConsumerWidget {
             linkColor: linkColor,
             exampleFill: exampleFill,
           ),
+          // Render the "forms" pill + status glyphs inside the forms table
+          // (otherwise empty cells, since flutter_html ignores Jitendex's
+          // ::before pseudo-elements).
+          _JitendexFormsExtension(fontSize: dictionaryFontSize),
         ],
       ),
     );

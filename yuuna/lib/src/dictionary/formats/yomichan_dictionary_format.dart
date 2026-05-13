@@ -261,8 +261,17 @@ List<_SenseSplit> _splitDefinitionBySense(String rawDefinition) {
   // forms recursively for a `<ol>`/`<ul>` with two or more `<li>` children
   // that we can treat as the sense list.
   final liChildren = _findSenseListChildren(decoded);
+
+  // Drop Jitendex's bottom "JMdict | Tatoeba" attribution div from every
+  // path — the dictionary chip above the entry already conveys the source.
+  _stripAttributionDivs(decoded);
+
   if (liChildren == null) {
-    return [_SenseSplit(rawDefinition, const [])];
+    // No multi-sense split: still lift inline tag spans so POS / misc /
+    // field / dialect surface as chips above the entry (and stop rendering
+    // as plain text concatenated into the gloss).
+    final codes = _extractAndStripTagSpans(decoded);
+    return [_SenseSplit(jsonEncode(decoded), codes)];
   }
 
   return liChildren.map((li) {
@@ -273,6 +282,31 @@ List<_SenseSplit> _splitDefinitionBySense(String rawDefinition) {
     final codes = _extractAndStripTagSpans(liContent);
     return _SenseSplit(jsonEncode(liContent), codes);
   }).toList();
+}
+
+/// Walk a Yomitan structured-content subtree and remove every
+/// `<div data-content="attribution">` Map from any List children. Jitendex
+/// emits this as a top-level sibling of the sense-groups `<ul>` and uses it
+/// for the "JMdict | Tatoeba" source line that the user doesn't want shown
+/// (the dictionary source already appears as a chip above the entry).
+///
+/// Same shape as [_walkAndStripTagSpans] — recurse into Maps via
+/// `node['content']`, on Lists `removeWhere` the matching entries.
+void _stripAttributionDivs(dynamic node) {
+  if (node is List) {
+    for (final child in node) {
+      _stripAttributionDivs(child);
+    }
+    node.removeWhere((c) {
+      if (c is! Map) return false;
+      if (c['tag'] != 'div') return false;
+      final data = c['data'];
+      if (data is! Map) return false;
+      return data['content'] == 'attribution';
+    });
+  } else if (node is Map) {
+    _stripAttributionDivs(node['content']);
+  }
 }
 
 /// Recursively search [node] for the outermost `<ol>`/`<ul>` whose
