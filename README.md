@@ -151,7 +151,7 @@ Please note that the development of the app switches between changes being imple
 - **ッツ Ebook Reader** allows reading of books in **EPUB or HTMLZ** format.
 - **Mokuro volumes** must be in HTML format, and have images in the relative directory.
 - **Make sure your Android WebView is updated before use**. This will resolve common issues that may occur with ッツ Ebook Reader or Mokuro.
-- Users may import <b><a href="https://foosoft.net/projects/yomichan/">Yomichan</a></b> dictionaries for Japanese, <b><a href="https://drive.google.com/drive/folders/1tTdLppnqMfVC5otPlX_cs4ixlIgjv_lH">some can be found here</a></b>. Note that Yomichan dictionaries using `structured-content` are currently unsupported.
+- Users may import <b><a href="https://foosoft.net/projects/yomichan/">Yomichan</a></b> / <b><a href="https://yomitan.wiki/">Yomitan</a></b> dictionaries for Japanese, <b><a href="https://drive.google.com/drive/folders/1tTdLppnqMfVC5otPlX_cs4ixlIgjv_lH">some can be found here</a></b>. Modern `structured-content` archives (including <b><a href="https://jitendex.org/">Jitendex</a></b>) are supported — POS / misc / field / dialect chips, sense notes, examples and cross-references all render natively. Imports are batched into Isar via `putAllSync` so even ~200k-entry archives like Jitendex finish in well under a minute on a current-gen phone.
 - Other supported formats include <b><a href="https://legacy.migaku.io/tools-guides/migaku-dictionary/manual/">Migaku</a></b> and <b><a href="http://lingvo.helpmax.net/en/troubleshooting/dsl-compiler/dsl-dictionary-structure/">DSL</b></a> dictionaries. 
 
 ### 🚀 Getting Started
