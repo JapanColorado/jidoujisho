@@ -58,51 +58,58 @@ Future<String> prepareNameMigakuFormat(PrepareDirectoryParams params) async {
 void prepareEntriesMigakuFormat({
   required PrepareDictionaryParams params,
   required Isar isar,
-}) async {
+}) {
   final List<FileSystemEntity> entities = params.resourceDirectory.listSync();
   final Iterable<File> files = entities.whereType<File>();
 
-  int count = 0;
+  // Migaku dictionaries are small (typically <10k entries), so one
+  // transaction for the whole format keeps the code simple and is still
+  // dramatically faster than the previous per-entry putSync loop. The
+  // outer writeTxnSync that used to wrap all formats was removed when
+  // Yomichan moved to its own batched transactions.
+  isar.writeTxnSync(() {
+    int count = 0;
 
-  for (File file in files) {
-    List<dynamic> items = List.from(jsonDecode(file.readAsStringSync()));
+    for (File file in files) {
+      List<dynamic> items = List.from(jsonDecode(file.readAsStringSync()));
 
-    for (dynamic item in items) {
-      Map<String, dynamic> map = Map<String, dynamic>.from(item);
+      for (dynamic item in items) {
+        Map<String, dynamic> map = Map<String, dynamic>.from(item);
 
-      String term = (map['term'] as String).trim();
-      String definition = map['definition'] as String;
-      String reading = map['pronunciation'] ?? '';
+        String term = (map['term'] as String).trim();
+        String definition = map['definition'] as String;
+        String reading = map['pronunciation'] ?? '';
 
-      definition = definition
-          .replaceAll('<br>', '\n')
-          .replaceAll(RegExp('<[^<]+?>'), '');
+        definition = definition
+            .replaceAll('<br>', '\n')
+            .replaceAll(RegExp('<[^<]+?>'), '');
 
-      int headingId = DictionaryHeading.hash(term: term, reading: reading);
-      DictionaryHeading heading = isar.dictionaryHeadings.getSync(headingId) ??
-          DictionaryHeading(term: term, reading: reading);
+        int headingId = DictionaryHeading.hash(term: term, reading: reading);
+        DictionaryHeading heading = isar.dictionaryHeadings.getSync(headingId) ??
+            DictionaryHeading(term: term, reading: reading);
 
-      DictionaryEntry entry = DictionaryEntry(
-        definitions: [definition],
-        popularity: 0,
-      );
+        DictionaryEntry entry = DictionaryEntry(
+          definitions: [definition],
+          popularity: 0,
+        );
 
-      entry.heading.value = heading;
-      entry.dictionary.value = params.dictionary;
-      isar.dictionaryEntrys.putSync(entry);
+        entry.heading.value = heading;
+        entry.dictionary.value = params.dictionary;
+        isar.dictionaryEntrys.putSync(entry);
 
-      heading.entries.add(entry);
+        // heading.entries is a @Backlink — Isar derives it from
+        // entry.heading.value, no explicit add/put needed. The heading
+        // itself still needs a put on first sight so its (term, reading)
+        // row exists in the heading collection.
+        isar.dictionaryHeadings.putSync(heading);
 
-      isar.dictionaryHeadings.putSync(heading);
-
-      count++;
-      params.send(t.import_found_entry(
-        count: count,
-      ));
+        count++;
+        params.send(t.import_found_entry(count: count));
+      }
     }
-  }
 
-  params.send(t.import_found_entry(count: count));
+    params.send(t.import_found_entry(count: count));
+  });
 }
 
 /// Top-level function for use in compute. See [DictionaryFormat] for details.

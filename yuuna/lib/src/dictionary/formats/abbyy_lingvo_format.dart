@@ -72,12 +72,10 @@ Future<String> prepareNameAbbyyLingvoFormat(
 }
 
 /// Top-level function for use in compute. See [DictionaryFormat] for details.
-Future<void> prepareEntriesAbbyyLingvoFormat({
+void prepareEntriesAbbyyLingvoFormat({
   required PrepareDictionaryParams params,
   required Isar isar,
-}) async {
-  int count = 0;
-
+}) {
   String dictionaryFilePath =
       path.join(params.resourceDirectory.path, 'dictionary.dsl');
   File dictionaryFile = File(dictionaryFilePath);
@@ -101,49 +99,52 @@ Future<void> prepareEntriesAbbyyLingvoFormat({
 
   List<String> lines = text.split('\n');
 
-  String term = '';
+  // The outer writeTxnSync that used to wrap all formats has moved into
+  // each format. DSL files are typically small (single-volume bilingual
+  // dictionaries), so one transaction for the whole import is fine.
+  isar.writeTxnSync(() {
+    int count = 0;
+    String term = '';
+    final buffer = StringBuffer();
 
-  final buffer = StringBuffer();
+    for (String line in lines) {
+      if (line.startsWith('#')) continue;
 
-  for (String line in lines) {
-    if (line.startsWith('#')) {
-      continue;
-    }
+      if (line.characters.isNotEmpty &&
+          line.characters.first.codeUnits.first == 9) {
+        buffer.writeln(line);
+      } else {
+        String definition = buffer.toString();
+        buffer.clear();
 
-    if (line.characters.isNotEmpty &&
-        line.characters.first.codeUnits.first == 9) {
-      buffer.writeln(line);
-    } else {
-      String definition = buffer.toString();
-      buffer.clear();
+        if (term.isNotEmpty && definition.isNotEmpty) {
+          int headingId = DictionaryHeading.hash(term: term, reading: '');
+          DictionaryHeading heading =
+              isar.dictionaryHeadings.getSync(headingId) ??
+                  DictionaryHeading(term: term);
 
-      if (term.isNotEmpty && definition.isNotEmpty) {
-        int headingId = DictionaryHeading.hash(term: term, reading: '');
-        DictionaryHeading heading =
-            isar.dictionaryHeadings.getSync(headingId) ??
-                DictionaryHeading(term: term);
+          DictionaryEntry entry = DictionaryEntry(
+            definitions: [definition],
+            popularity: 0,
+          );
 
-        DictionaryEntry entry = DictionaryEntry(
-          definitions: [definition],
-          popularity: 0,
-        );
+          entry.heading.value = heading;
+          entry.dictionary.value = params.dictionary;
+          isar.dictionaryEntrys.putSync(entry);
 
-        entry.heading.value = heading;
-        entry.dictionary.value = params.dictionary;
-        isar.dictionaryEntrys.putSync(entry);
+          // heading.entries is a @Backlink — Isar derives it from
+          // entry.heading.value, no explicit add needed. The heading
+          // itself still needs a put on first sight so its row exists.
+          isar.dictionaryHeadings.putSync(heading);
 
-        heading.entries.add(entry);
+          params.send(t.import_found_entry(count: count));
+          count++;
+        }
 
-        isar.dictionaryHeadings.putSync(heading);
-
-        params.send(t.import_found_entry(count: count));
-
-        count++;
+        term = line.trim();
       }
-
-      term = line.trim();
     }
-  }
+  });
 }
 
 /// Top-level function for use in compute. See [DictionaryFormat] for details.

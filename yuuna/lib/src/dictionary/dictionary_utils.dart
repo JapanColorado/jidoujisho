@@ -29,31 +29,85 @@ int fastHash(String string) {
 /// the [DictionaryFormat] is also done in the same isolate, to remove having
 /// to communicate potentially hundreds of thousands of entries to another
 /// newly opened isolate.
+///
+/// Each prepare* function owns its own write transactions (Yomichan does this
+/// via an internal `_ImportBatcher` that flushes ~10000 rows at a time with
+/// `putAllSync`; Migaku and ABBYY wrap their bodies in a single `writeTxnSync`
+/// each). Atomicity across the whole import is preserved by deleting the
+/// half-imported dictionary's rows in the catch block — failed imports leave
+/// no trace, matching the previous single-transaction behaviour.
 Future<void> depositDictionaryDataHelper(PrepareDictionaryParams params) async {
+  Isar? isar;
   try {
-    /// Create a new instance of Isar as this is a different isolate.
-    final Isar isar = await Isar.open(
+    isar = await Isar.open(
       globalSchemas,
       directory: params.directoryPath,
       maxSizeMiB: 8192,
     );
 
-    /// Write as one transaction. If anything fails, no changes should occur.
-    await isar.writeTxnSync(() async {
-      /// Write the [Dictionary] entity.
-      isar.dictionarys.putSync(params.dictionary);
-
-      /// Write entities.
-      params.dictionaryFormat.prepareTags(params: params, isar: isar);
-      params.dictionaryFormat.prepareEntries(params: params, isar: isar);
-      params.dictionaryFormat.preparePitches(params: params, isar: isar);
-      params.dictionaryFormat.prepareFrequencies(params: params, isar: isar);
+    // Write the dictionary metadata row up front in its own small txn so
+    // subsequent `IsarLink.value = params.dictionary` references resolve once
+    // the owning entries/tags/pitches/frequencies are flushed.
+    isar.writeTxnSync(() {
+      isar!.dictionarys.putSync(params.dictionary);
     });
+
+    params.dictionaryFormat.prepareTags(params: params, isar: isar);
+    params.dictionaryFormat.prepareEntries(params: params, isar: isar);
+    params.dictionaryFormat.preparePitches(params: params, isar: isar);
+    params.dictionaryFormat.prepareFrequencies(params: params, isar: isar);
+
+    // Drain any pending writes still held by the Yomichan batcher. No-op for
+    // formats that don't use it.
+    finalizeYomichanImport(isar: isar);
   } catch (e, stack) {
     debugPrint('$e');
     debugPrint('$stack');
-
     params.send('$stack');
+
+    // Roll back: drop everything tied to this dictionary id so a retried
+    // import doesn't see half-imported state. Best-effort — if the rollback
+    // itself fails, the original error still surfaces below via rethrow.
+    abandonYomichanImport();
+    if (isar != null) {
+      try {
+        final int id = params.dictionary.id;
+        isar.writeTxnSync(() {
+          isar!.dictionaryEntrys
+              .filter()
+              .dictionary((q) => q.idEqualTo(id))
+              .deleteAllSync();
+          isar.dictionaryTags
+              .filter()
+              .dictionary((q) => q.idEqualTo(id))
+              .deleteAllSync();
+          isar.dictionaryPitchs
+              .filter()
+              .dictionary((q) => q.idEqualTo(id))
+              .deleteAllSync();
+          isar.dictionaryFrequencys
+              .filter()
+              .dictionary((q) => q.idEqualTo(id))
+              .deleteAllSync();
+          // Drop headings that no other dictionary still references — same
+          // condition as `deleteDictionaryHelper` so co-owned headings stay.
+          isar.dictionaryHeadings
+              .filter()
+              .entriesIsEmpty()
+              .and()
+              .tagsIsEmpty()
+              .and()
+              .pitchesIsEmpty()
+              .and()
+              .frequenciesIsEmpty()
+              .deleteAllSync();
+          isar.dictionarys.deleteSync(id);
+        });
+      } catch (rollbackError, rollbackStack) {
+        debugPrint('rollback failed: $rollbackError');
+        debugPrint('$rollbackStack');
+      }
+    }
 
     rethrow;
   }
