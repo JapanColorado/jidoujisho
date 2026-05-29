@@ -33,7 +33,6 @@ dependencies:
   expandable: ^5.0.1
   external_app_launcher: ^4.0.3
   external_path: ^2.2.0
-  favicon: ^1.1.1
   file_picker: ^8.0.7
   filesystem_picker:
     path: packages/filesystem_picker
