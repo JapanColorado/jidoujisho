@@ -1189,6 +1189,20 @@ class AppModel with ChangeNotifier {
       maxSizeMiB: 8192,
     );
 
+    _removeBrowserSourceLeftovers();
+
+    /// Create the default profile here rather than only from the home page:
+    /// a first launch through a share intent never builds the home page,
+    /// and `mappings.first` then threw in the card creator.
+    if (_database.ankiMappings.where().findAllSync().isEmpty) {
+      _database.writeTxnSync(() {
+        _database.ankiMappings.putSync(AnkiMapping.defaultMapping(
+          language: targetLanguage,
+          order: 0,
+        ));
+      });
+    }
+
     /// Preloads the search database in memory.
     searchDictionary(
       searchTerm: targetLanguage.helloWorld,
@@ -1208,6 +1222,30 @@ class AppModel with ChangeNotifier {
         );
       });
     });
+  }
+
+  /// The in-app browser reader source was removed, but history rows it
+  /// created are still in the database. They have no [MediaSource] to
+  /// resolve (`MediaItem.getMediaSource` crashed on them), count towards the
+  /// reader history limit, and their web archives stay on disk.
+  void _removeBrowserSourceLeftovers() {
+    const String removedSourceKey = 'reader_browser';
+    try {
+      _database.writeTxnSync(() {
+        _database.mediaItems
+            .filter()
+            .mediaSourceIdentifierEqualTo(removedSourceKey)
+            .deleteAllSync();
+      });
+
+      final Directory webArchive =
+          Directory(path.join(appDirectory.path, 'webArchive'));
+      if (webArchive.existsSync()) {
+        webArchive.deleteSync(recursive: true);
+      }
+    } catch (e) {
+      debugPrint('Failed to clean up removed browser source data: $e');
+    }
   }
 
   /// Get whether or not the current theme is dark mode.
@@ -1301,14 +1339,17 @@ class AppModel with ChangeNotifier {
     String localeTag = language.locale.toLanguageTag();
     await _preferences.put('target_language', localeTag);
 
-    language.initialise();
+    // Awaited so segmentation (e.g. mecab for Japanese) is ready before
+    // anything uses the newly selected language.
+    await language.initialise();
 
     notifyListeners();
   }
 
   /// Persist a new app locale in preferences.
   Future<void> setAppLocale(String localeTag) async {
-    await _preferences.put('appf_locale', localeTag);
+    // Was 'appf_locale', a key the getter never reads.
+    await _preferences.put('app_locale', localeTag);
     notifyListeners();
   }
 
@@ -1432,6 +1473,7 @@ class AppModel with ChangeNotifier {
     /// If any [Exception] occurs, the process is aborted with a message as
     /// shown below. A dialog is shown to show the progress of the dictionary
     /// file import, with messages pertaining to the above [ValueNotifier].
+    Directory? resourceDirectory;
     try {
       String charset = '';
 
@@ -1452,7 +1494,7 @@ class AppModel with ChangeNotifier {
               ?.id ??
           1;
       final int id = highestId + 1;
-      final Directory resourceDirectory =
+      resourceDirectory =
           Directory(path.join(dictionaryResourceDirectory.path, id.toString()));
       if (resourceDirectory.existsSync()) {
         resourceDirectory.deleteSync(recursive: true);
@@ -1505,16 +1547,47 @@ class AppModel with ChangeNotifier {
 
       await compute(depositDictionaryDataHelper, prepareDictionaryParams);
 
+      _deleteImportedDataFiles(resourceDirectory);
+
       progressNotifier.value = t.import_complete;
       onImportSuccess();
       await Future.delayed(const Duration(seconds: 1), () {});
     } catch (e) {
+      // The extracted archive (hundreds of MB for large dictionaries) was
+      // left behind on failure, e.g. for a duplicate name.
+      try {
+        if (resourceDirectory?.existsSync() ?? false) {
+          resourceDirectory!.deleteSync(recursive: true);
+        }
+      } catch (_) {}
+
       progressNotifier.value = '$e';
       await Future.delayed(const Duration(seconds: 3), () {});
       progressNotifier.value = t.import_failed;
       await Future.delayed(const Duration(seconds: 1), () {});
     } finally {
       receivePort.close();
+      alertReceivePort.close();
+    }
+  }
+
+  /// After a successful import only the media inside a dictionary's resource
+  /// directory (images, usually in subfolders) is read again. The top-level
+  /// bank files (`term_bank_*.json` and friends, `.dsl`) are already in the
+  /// database; keeping them cost hundreds of MB per large dictionary.
+  void _deleteImportedDataFiles(Directory resourceDirectory) {
+    try {
+      for (final FileSystemEntity entity in resourceDirectory.listSync()) {
+        if (entity is! File) {
+          continue;
+        }
+        final String extension = path.extension(entity.path).toLowerCase();
+        if (extension == '.json' || extension == '.dsl') {
+          entity.deleteSync();
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to clean up imported dictionary files: $e');
     }
   }
 
@@ -1565,6 +1638,7 @@ class AppModel with ChangeNotifier {
     );
 
     await compute(deleteDictionariesHelper, params);
+    receivePort.close();
     await _dictionaryHistory.clear();
 
     if (dictionaryResourceDirectory.existsSync()) {
@@ -1588,6 +1662,7 @@ class AppModel with ChangeNotifier {
     );
 
     await compute(deleteDictionaryHelper, params);
+    receivePort.close();
     await _dictionaryHistory.clear();
 
     final directory = Directory(
@@ -1661,9 +1736,20 @@ class AppModel with ChangeNotifier {
     int? overrideMaximumTerms,
     bool useCache = true,
   }) async {
-    if (_dictionarySearchCache['$searchTerm/$overrideMaximumTerms'] != null &&
-        useCache) {
-      return _dictionarySearchCache['$searchTerm/$overrideMaximumTerms']!;
+    // Wildcard and plain searches of the same text differ, so both are part
+    // of the key. A cached result is only reused while its database row
+    // still exists: each search replaces the row for its term, and old rows
+    // are trimmed, after which the cached id pointed at nothing (and took a
+    // dictionary-history slot while showing nothing).
+    final String cacheKey =
+        '$searchTerm/$overrideMaximumTerms/$searchWithWildcards';
+    final DictionarySearchResult? cached = _dictionarySearchCache[cacheKey];
+    if (cached != null && useCache) {
+      if (cached.id != null &&
+          _database.dictionarySearchResults.getSync(cached.id!) != null) {
+        return cached;
+      }
+      _dictionarySearchCache.remove(cacheKey);
     }
 
     searchTerm = searchTerm.replaceAll('\n', ' ');
@@ -1691,6 +1777,7 @@ class AppModel with ChangeNotifier {
     );
 
     if (params.searchTerm.trim().isEmpty) {
+      receivePort.close();
       return DictionarySearchResult(searchTerm: searchTerm);
     }
 
@@ -1698,9 +1785,15 @@ class AppModel with ChangeNotifier {
     /// dictionary search history, as well as allowing a result to be linked
     /// to the actual data, rather than duplicating that data within the
     /// database, which is not ideal for storage purposes.
-    _searchOperation =
-        cancelable.compute(targetLanguage.prepareSearchResults, params);
-    int? id = await _searchOperation?.value;
+    int? id;
+    try {
+      _searchOperation =
+          cancelable.compute(targetLanguage.prepareSearchResults, params);
+      id = await _searchOperation?.value;
+    } finally {
+      // One port per lookup used to stay open forever.
+      receivePort.close();
+    }
 
     if (id == null) {
       return DictionarySearchResult(searchTerm: searchTerm);
@@ -1710,7 +1803,7 @@ class AppModel with ChangeNotifier {
         _database.dictionarySearchResults.getSync(id);
 
     if (result != null && result.headingIds.isNotEmpty) {
-      _dictionarySearchCache['$searchTerm/$overrideMaximumTerms'] = result;
+      _dictionarySearchCache[cacheKey] = result;
       return result;
     } else {
       return DictionarySearchResult(searchTerm: searchTerm);
@@ -2980,6 +3073,7 @@ class AppModel with ChangeNotifier {
       sendPort: receivePort.sendPort,
     );
     await compute(updateDictionaryHistoryHelper, params);
+    receivePort.close();
   }
 
   /// Clear the entire dictionary history. This must be performed when a

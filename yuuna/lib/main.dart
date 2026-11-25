@@ -220,9 +220,26 @@ class _JidoujishoAppState extends ConsumerState<JidoujishoApp>
           title: title,
         );
         return;
+      // SEARCH and MEDIA_SEARCH are declared in the manifest too but had no
+      // case here, so launching through them left a blank screen. All three
+      // carry the text in SearchManager.QUERY ("query").
       case 'android.intent.action.WEB_SEARCH':
-        String data = intent.extra!['query'];
-        textContextMenuAction(data);
+      case 'android.intent.action.SEARCH':
+      case 'android.intent.action.MEDIA_SEARCH':
+        final Object? query = intent.extra?['query'];
+        if (query is String && query.trim().isNotEmpty) {
+          textContextMenuAction(query);
+        } else {
+          setState(() {
+            _isMainIntent = true;
+          });
+        }
+        return;
+      default:
+        // Unknown action: show the app rather than an empty Scaffold.
+        setState(() {
+          _isMainIntent = true;
+        });
         return;
     }
   }

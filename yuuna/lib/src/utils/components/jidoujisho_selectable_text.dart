@@ -156,9 +156,13 @@ class JidoujishoSelectableTextController {
       return;
     }
 
+    // Keep the cached [selection] in sync too: a stale range made a tap on
+    // a new word inside the old range read as "tapped the selected word
+    // again" and close the popup instead of looking it up.
+    selection = const TextSelection.collapsed(offset: -1);
     _textSpanEditingController!.value =
         _textSpanEditingController!.value.copyWith(
-      selection: const TextSelection.collapsed(offset: -1),
+      selection: selection,
     );
   }
 }

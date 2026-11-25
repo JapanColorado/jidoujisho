@@ -7,7 +7,11 @@
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
-    <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Required since targetSdk 34 for AudioService's mediaPlayback
+         foreground service; without it startForeground() throws a
+         SecurityException and background play / the media notification
+         fail on Android 14+. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"/>
     <application
         android:label="jidoujisho"
         android:name="${applicationName}"

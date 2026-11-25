@@ -224,7 +224,9 @@ Future<int?> prepareSearchResultsEnglishLanguage(
           .flattened
           .where((e) => e.isNotEmpty)
           .map(
-            (e) => [...blocks, e].join(),
+            // Space-joined: "fruit flies" must become "fruit fly", not
+            // "fruitfly", or multi-word headwords never match.
+            (e) => [...blocks, e].join(' '),
           )
           .toList();
 

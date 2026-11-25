@@ -125,7 +125,8 @@ public class MainActivity extends AudioServiceActivity {
         return false;
     }
 
-    private void addNote(String model, String deck, ArrayList<String> fields, ArrayList<String> tags) {
+    /** Returns the new note's id, or null if AnkiDroid didn't add it. */
+    private Long addNote(String model, String deck, ArrayList<String> fields, ArrayList<String> tags) {
         final AddContentApi api = new AddContentApi(context);
 
         long deckId;
@@ -140,11 +141,12 @@ public class MainActivity extends AudioServiceActivity {
         Set<String> allTags = new HashSet<>(Arrays.asList("Yuuna"));
         allTags.addAll(tags);
 
-        api.addNote(modelId, deckId, fields.toArray(new String[fields.size()]), allTags);
+        Long noteId = api.addNote(modelId, deckId, fields.toArray(new String[fields.size()]), allTags);
 
         System.out.println("Added note via flutter_ankidroid_api");
         System.out.println("Model: " + modelId);
         System.out.println("Deck: " + deckId);
+        return noteId;
     }
 
     @Override
@@ -169,8 +171,14 @@ public class MainActivity extends AudioServiceActivity {
 
                     switch (call.method) {
                         case "addNote":
-                            addNote(model, deck, fields, tags);
-                            result.success("Added note");
+                            // AddContentApi.addNote returns null when nothing
+                            // was added; report that instead of "Added note",
+                            // which made the app claim the card was exported.
+                            if (addNote(model, deck, fields, tags) == null) {
+                                result.error("addNote", "AnkiDroid did not add the note", null);
+                            } else {
+                                result.success("Added note");
+                            }
                             break;
                         case "checkForDuplicates":
                             if (mAnkiDroid.shouldRequestPermission()) {
@@ -180,7 +188,16 @@ public class MainActivity extends AudioServiceActivity {
                                 new Handler(Looper.getMainLooper()).post(new Runnable() {
                                 @Override
                                 public void run() {
-                                    result.success(checkForDuplicates(models, key));
+                                    // Runs outside the method channel's
+                                    // exception handling: an AnkiDroid provider
+                                    // error here (collection unavailable,
+                                    // permission revoked) crashed the app
+                                    // while just showing dictionary results.
+                                    try {
+                                        result.success(checkForDuplicates(models, key));
+                                    } catch (Exception e) {
+                                        result.success(false);
+                                    }
                                 }
                                 });
                             }
@@ -197,6 +214,7 @@ public class MainActivity extends AudioServiceActivity {
                             break;
                         case "addDefaultModel":
                             addDefaultModel();
+                            result.success(true);
                             break;
                         case "requestAnkidroidPermissions":
                             if (mAnkiDroid.shouldRequestPermission()) {

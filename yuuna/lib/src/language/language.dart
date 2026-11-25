@@ -338,7 +338,13 @@ abstract class Language {
               .length ??
           1;
       List<String> searchTermWords = searchTerm.splitWithDelim(regex);
-      return searchTermWords.sublist(0, numberOfWords).join().length;
+      // The heading can have more words than the raw text (contractions are
+      // expanded before matching: "don't" finds "do not"), which made this
+      // sublist throw.
+      return searchTermWords
+          .sublist(0, min(numberOfWords, searchTermWords.length))
+          .join()
+          .length;
     } else {
       return max(1, result?.bestLength ?? 0);
     }
