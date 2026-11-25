@@ -18,9 +18,10 @@ concurrency:
 
 env:
   APP: jidoujisho
-  # SHA-256 of the signing certificate on the installed app (the same key as Yagi). A mismatch
-  # means the phone would reject the update, so the release step refuses to publish.
-  EXPECTED_CERT_SHA256: c4d32bc07c3d7b0c72ead8f9c08e197f618381175e900a6e976935a4e44a87f7
+  # SHA-256 of the signing certificate on the installed app (jidoujisho's own release key, alias
+  # jidoujisho, created 2026-11-25). A mismatch means the phone would reject the update, so the
+  # release step refuses to publish.
+  EXPECTED_CERT_SHA256: 326b4c890812b2599f8505e49f16ac2306a0a5a3044d77c947bca3e12c5228b2
   RELEASE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
 
 jobs:
