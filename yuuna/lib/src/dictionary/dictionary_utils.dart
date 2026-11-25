@@ -77,10 +77,9 @@ Future<void> depositDictionaryDataHelper(PrepareDictionaryParams params) async {
               .filter()
               .dictionary((q) => q.idEqualTo(id))
               .deleteAllSync();
-          isar.dictionaryTags
-              .filter()
-              .dictionary((q) => q.idEqualTo(id))
-              .deleteAllSync();
+          // Tags are keyed by `dictionaryId`; their `dictionary` link is never
+          // set on import, so filtering on the link would match nothing.
+          isar.dictionaryTags.filter().dictionaryIdEqualTo(id).deleteAllSync();
           isar.dictionaryPitchs
               .filter()
               .dictionary((q) => q.idEqualTo(id))
@@ -192,10 +191,12 @@ Future<void> deleteDictionaryHelper(DeleteDictionaryParams params) async {
         .filter()
         .dictionary((q) => q.idEqualTo(id))
         .deleteAllSync();
-    database.dictionaryTags
-        .filter()
-        .dictionary((q) => q.idEqualTo(id))
-        .deleteAllSync();
+    // Tags are keyed by `dictionaryId`; their `dictionary` link is never set
+    // on import, so filtering on the link matched nothing and left this
+    // dictionary's tags (and every heading linked to them) behind. Since ids
+    // are reused (`highestId + 1`), those stale tags then showed up on the
+    // next dictionary imported under the same id.
+    database.dictionaryTags.filter().dictionaryIdEqualTo(id).deleteAllSync();
     database.dictionaryPitchs
         .filter()
         .dictionary((q) => q.idEqualTo(id))

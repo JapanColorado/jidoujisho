@@ -17,8 +17,12 @@ class CacheImageProvider extends ImageProvider<CacheImageProvider> {
   /// The bytes of image to cache.
   final Uint8List img;
 
+  // Must be `loadImage`: Flutter removed `ImageProvider.load`, so a method
+  // named `load` no longer overrides anything and the base class returned a
+  // placeholder completer that never produced a frame (blank thumbnails).
   @override
-  ImageStreamCompleter load(CacheImageProvider key, ImageDecoderCallback decode) {
+  ImageStreamCompleter loadImage(
+      CacheImageProvider key, ImageDecoderCallback decode) {
     return MultiFrameImageStreamCompleter(
       codec: _loadAsync(decode),
       scale: 1,
