@@ -1,4 +1,4 @@
-> **About this fork.** Upstream [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujisho) was archived in October 2025. This fork keeps the app working: it folds in two community pull requests that were never merged upstream, splits multi-sense dictionary entries, styles Jitendex notes, examples and cross-references, batches dictionary imports so they run faster, and modernises CI. Latest release: **[2.10.0](https://github.com/JapanColorado/jidoujisho/releases/tag/2.10.0)**. Everything below is upstream's README; its links point to the original project.
+> **About this fork.** Upstream [arianneorpilla/jidoujisho](https://github.com/arianneorpilla/jidoujisho) was archived in October 2025. This fork keeps the app working: it folds in two community pull requests that were never merged upstream, splits multi-sense dictionary entries, styles Jitendex notes, examples and cross-references, batches dictionary imports so they run faster, and modernises CI. Every push to `main` that passes CI is published as a [release](https://github.com/JapanColorado/jidoujisho/releases/latest), so [Obtainium](https://github.com/ImranR98/Obtainium) can keep the app up to date. Everything below is upstream's README; its links point to the original project.
 
 <p align="center">
   <img src="https://github.com/arianneorpilla/jidoujisho/blob/main/yuuna/assets/meta/icon.png" width="250" height="250">
@@ -36,7 +36,7 @@
 ---
 
 <p align="center" style="margin:0"><b>‍🧪 Latest Release:
-  <a href="https://github.com/JapanColorado/jidoujisho/releases/tag/2.10.0">2.10.0</a> (this fork)
+  <a href="https://github.com/JapanColorado/jidoujisho/releases/latest">latest</a> (this fork)
 </b></p>
 
 <b>
