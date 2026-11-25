@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:async_zip/async_zip.dart';
-import 'package:beautiful_soup_dart/beautiful_soup.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:html/dom.dart' as dom;
@@ -10,7 +9,6 @@ import 'package:isar/isar.dart';
 import 'package:list_counter/list_counter.dart';
 import 'package:path/path.dart' as path;
 import 'package:recase/recase.dart';
-import 'package:collection/collection.dart';
 import 'package:yuuna/dictionary.dart';
 import 'package:yuuna/utils.dart';
 
@@ -63,53 +61,9 @@ class YomichanFormat extends DictionaryFormat {
       return '';
     }
 
-    final document = dom.Document.html('');
-    document.body?.append(node);
-
-    // Walk every <ul>/<ol> and rewrite its <li> children with the right
-    // marker. Iterating per-list (not flat over all <li>s) lets us track a
-    // separate index per list, so ordered lists number correctly.
-    for (final list in document.querySelectorAll('ul, ol')) {
-      final css = list.attributes['style'] ?? '';
-      final declared = css
-          .split(';')
-          .where((e) => e.contains('list-style-type'))
-          .firstOrNull
-          ?.split(':')
-          .lastOrNull
-          ?.trim();
-      // Default is the user-agent default for the list type — `decimal` for
-      // <ol>, `disc` for <ul>.
-      final styleName = declared ?? (list.localName == 'ol' ? 'decimal' : 'disc');
-      final counterStyle = CounterStyleRegistry.lookup(styleName);
-
-      var index = 0;
-      for (final li in list.children.where((c) => c.localName == 'li')) {
-        final text = li.text;
-        final marker = counterStyle.generateMarkerContent(index);
-        li.text = '$marker $text';
-        index++;
-      }
-    }
-
-    // Render tables as tab-separated text rows so card export keeps tabular
-    // content instead of dropping it entirely. (The previous
-    // `.map((e) => e.remove())` was a no-op — `.map` is lazy in Dart.)
-    for (final table in document.querySelectorAll('table')) {
-      final lines = <String>[];
-      for (final row in table.querySelectorAll('tr')) {
-        final cells = row
-            .querySelectorAll('td, th')
-            .map((c) => c.text.trim())
-            .toList();
-        lines.add(cells.join('\t'));
-      }
-      table.replaceWith(dom.Text(lines.join('\n')));
-    }
-
-    final html = document.body?.innerHtml ?? '';
-
-    return BeautifulSoup(html).getText(separator: '\n');
+    final writer = _PlainTextWriter();
+    writer.write(node);
+    return writer.toString();
   }
 
   /// Recursively get HTML for a structured content definition.
@@ -178,6 +132,169 @@ class YomichanFormat extends DictionaryFormat {
     }
 
     return null;
+  }
+}
+
+/// Converts a structured-content DOM into plain text for card export.
+///
+/// Block elements and list items start new lines, list items get their CSS
+/// marker (a quoted `list-style-type` such as Jitendex's `'①'` is used
+/// literally; keywords go through [CounterStyleRegistry], counting from 1),
+/// tables become tab-separated rows, and `<rt>`/`<rp>` furigana is dropped so
+/// it isn't glued into the text. Nested lists keep their structure: a sense
+/// marker shares the line with the first gloss beneath it. Lists carrying a
+/// Jitendex `data-content` marker get no default bullet, matching the
+/// on-screen renderer.
+class _PlainTextWriter {
+  static const Set<String> _blockTags = {
+    'address', 'article', 'aside', 'blockquote', 'details', 'dd', 'div', 'dl',
+    'dt', 'figcaption', 'figure', 'footer', 'h1', 'h2', 'h3', 'h4', 'h5',
+    'h6', 'header', 'hr', 'main', 'nav', 'p', 'pre', 'section', 'summary',
+  };
+  static const Set<String> _skippedTags = {
+    'rt', 'rp', 'img', 'script', 'style', 'template',
+  };
+
+  final List<String> _lines = [];
+  final StringBuffer _current = StringBuffer();
+  String _pendingPrefix = '';
+
+  void write(dom.Node node) {
+    if (node is dom.Text) {
+      _writeText(node.text);
+      return;
+    }
+    if (node is! dom.Element) {
+      node.nodes.forEach(write);
+      return;
+    }
+
+    final tag = node.localName ?? '';
+    if (_skippedTags.contains(tag)) return;
+
+    switch (tag) {
+      case 'br':
+        _newLine();
+        return;
+      case 'ul':
+      case 'ol':
+        _writeList(node);
+        return;
+      case 'table':
+        _writeTable(node);
+        return;
+    }
+
+    final isBlock = _blockTags.contains(tag) || tag == 'li';
+    if (isBlock) _newLine();
+    node.nodes.forEach(write);
+    if (isBlock) {
+      _newLine();
+    } else if (node.attributes['data-content']?.endsWith('-label') ?? false) {
+      // Inline labels such as Jitendex's "See also" are spaced from the
+      // linked term by CSS margin on screen; keep them apart in text too.
+      _current.write(' ');
+    }
+  }
+
+  void _writeList(dom.Element list) {
+    _newLine();
+    // Lists tagged with a `data-content` marker are Jitendex structure
+    // (sense groups, glossaries) that the renderer shows without bullets;
+    // their items carry their own markers (e.g. `'①'`) where needed.
+    final listStyle = _listStyleType(list) ??
+        (list.attributes.containsKey('data-content')
+            ? 'none'
+            : list.localName == 'ol'
+                ? 'decimal'
+                : 'disc');
+
+    var index = 0;
+    for (final child in list.nodes) {
+      if (child is dom.Element && child.localName == 'li') {
+        index++;
+        final marker = _marker(_listStyleType(child) ?? listStyle, index);
+        _newLine();
+        if (marker.isNotEmpty) _pendingPrefix += '$marker ';
+        child.nodes.forEach(write);
+        _newLine();
+      } else {
+        write(child);
+      }
+    }
+    _newLine();
+  }
+
+  void _writeTable(dom.Element table) {
+    _newLine();
+    for (final row in table.querySelectorAll('tr')) {
+      final cells = row.children
+          .where((c) => c.localName == 'td' || c.localName == 'th')
+          .map((cell) {
+        final cellWriter = _PlainTextWriter();
+        cell.nodes.forEach(cellWriter.write);
+        return cellWriter.toString().replaceAll('\n', ' ');
+      }).toList();
+      _writeText(cells.join('\t'));
+      _newLine();
+    }
+    _newLine();
+  }
+
+  void _writeText(String text) {
+    final parts = text.split('\n');
+    for (var i = 0; i < parts.length; i++) {
+      if (i > 0) _newLine();
+      final part = parts[i];
+      if (part.trim().isEmpty) {
+        // Keep single spaces between inline runs, but never start a line
+        // with whitespace.
+        if (_current.isNotEmpty && part.isNotEmpty) _current.write(' ');
+        continue;
+      }
+      if (_current.isEmpty) {
+        _current.write(_pendingPrefix);
+        _pendingPrefix = '';
+      }
+      _current.write(part);
+    }
+  }
+
+  void _newLine() {
+    final line = _current.toString().replaceAll(RegExp(r'[ \t]+$'), '');
+    if (line.trim().isNotEmpty) _lines.add(line.trimLeft());
+    _current.clear();
+  }
+
+  /// The `list-style-type` declared inline on [element], if any.
+  static String? _listStyleType(dom.Element element) {
+    final style = element.attributes['style'];
+    if (style == null) return null;
+    for (final declaration in style.split(';')) {
+      final colon = declaration.indexOf(':');
+      if (colon == -1) continue;
+      if (declaration.substring(0, colon).trim() == 'list-style-type') {
+        final value = declaration.substring(colon + 1).trim();
+        return value.isEmpty ? null : value;
+      }
+    }
+    return null;
+  }
+
+  static String _marker(String listStyle, int index) {
+    if (listStyle == 'none') return '';
+    final quoted = RegExp(r'''^['"](.*)['"]$''', dotAll: true)
+        .firstMatch(listStyle);
+    if (quoted != null) return quoted.group(1)!.trim();
+    return CounterStyleRegistry.lookup(listStyle)
+        .generateMarkerContent(index)
+        .trim();
+  }
+
+  @override
+  String toString() {
+    _newLine();
+    return _lines.join('\n');
   }
 }
 
@@ -258,15 +375,21 @@ List<_SenseSplit> _splitDefinitionBySense(String rawDefinition) {
 
   // Jitendex's top-level shape is a List (e.g. [<ul sense-groups>,
   // <div attribution>]) — older shapes wrap in a single Map. Search both
-  // forms recursively for a `<ol>`/`<ul>` with two or more `<li>` children
-  // that we can treat as the sense list.
-  final liChildren = _findSenseListChildren(decoded);
+  // forms recursively for the `<ol>`/`<ul data-content="sense-groups">`.
+  final listItems = _findSenseListChildren(decoded);
 
   // Drop Jitendex's bottom "JMdict | Tatoeba" attribution div from every
   // path — the dictionary chip above the entry already conveys the source.
   _stripAttributionDivs(decoded);
 
-  if (liChildren == null) {
+  // The sense-groups list also carries a trailing `<li data-content="forms">`
+  // (the spelling/reading variants table) on most entries. Only real sense
+  // groups decide whether to split — otherwise every one-sense entry with a
+  // forms table would be split into a sense plus a forms-only "sense".
+  final senseGroups =
+      listItems?.where(_isSenseGroupItem).toList() ?? const <dynamic>[];
+
+  if (senseGroups.length < 2) {
     // No multi-sense split: still lift inline tag spans so POS / misc /
     // field / dialect surface as chips above the entry (and stop rendering
     // as plain text concatenated into the gloss).
@@ -274,14 +397,45 @@ List<_SenseSplit> _splitDefinitionBySense(String rawDefinition) {
     return [_SenseSplit(jsonEncode(decoded), codes)];
   }
 
-  return liChildren.map((li) {
+  // Non-sense items (the forms table) are kept, re-wrapped as `<div>`s with
+  // their original `data` markers, and appended to the last sense — the same
+  // shape Jitendex uses for single-sense entries (`div[forms]` after the
+  // sense), so the renderer and card export treat both cases alike.
+  final trailing = listItems!
+      .where((c) => c is Map && c['tag'] == 'li' && !_isSenseGroupItem(c))
+      .map((li) => <String, dynamic>{
+            'tag': 'div',
+            if ((li as Map)['data'] != null) 'data': li['data'],
+            if (li['content'] != null) 'content': li['content'],
+          })
+      .toList();
+
+  final splits = <_SenseSplit>[];
+  for (var i = 0; i < senseGroups.length; i++) {
+    dynamic liContent = (senseGroups[i] as Map)['content'];
+    if (i == senseGroups.length - 1 && trailing.isNotEmpty) {
+      liContent = [
+        if (liContent is List) ...liContent else if (liContent != null) liContent,
+        ...trailing,
+      ];
+    }
     // _extractAndStripTagSpans mutates in place: it pulls every Jitendex
     // tag-info span out of the tree (so they don't render in the body) and
     // returns their codes (so they can become chips on the entry).
-    final liContent = (li as Map)['content'];
     final codes = _extractAndStripTagSpans(liContent);
-    return _SenseSplit(jsonEncode(liContent), codes);
-  }).toList();
+    splits.add(_SenseSplit(jsonEncode(liContent), codes));
+  }
+  return splits;
+}
+
+/// Whether [item] is one `<li>` sense group of a Jitendex sense-groups list.
+/// Items without a `data-content` marker count too (older builds didn't tag
+/// them); anything with a different marker (e.g. `forms`) does not.
+bool _isSenseGroupItem(dynamic item) {
+  if (item is! Map || item['tag'] != 'li') return false;
+  final data = item['data'];
+  final marker = data is Map ? data['content'] : null;
+  return marker == null || marker == 'sense-group';
 }
 
 /// Walk a Yomitan structured-content subtree and remove every
@@ -311,8 +465,10 @@ void _stripAttributionDivs(dynamic node) {
 
 /// Recursively search [node] for the outermost `<ol>`/`<ul>` whose
 /// `data.content == "sense-groups"` — Jitendex's canonical marker for the
-/// outer sense list. Returns the `<li>` children with that marker, or null
-/// if absent (depth-bounded to avoid pathological cycles).
+/// outer sense list. Returns all of its `<li>` children (sense groups plus
+/// any trailing `forms` item), or null if absent (depth-bounded to avoid
+/// pathological cycles). A list with a single `<li>` is stored by Jitendex
+/// as a Map rather than a one-element List; both shapes are handled.
 ///
 /// Restricting to the explicit marker prevents accidentally splitting on
 /// the inner sub-sense `<ol>` (the ① ② ③ list) inside a single-POS entry.
@@ -323,12 +479,10 @@ List<dynamic>? _findSenseListChildren(dynamic node, [int depth = 0]) {
     final content = node['content'];
     final data = node['data'];
     if ((tag == 'ol' || tag == 'ul') &&
-        content is List &&
         data is Map &&
         data['content'] == 'sense-groups') {
-      final lis =
-          content.where((c) => c is Map && c['tag'] == 'li').toList();
-      if (lis.length >= 2) return lis;
+      final items = content is List ? content : [content];
+      return items.where((c) => c is Map && c['tag'] == 'li').toList();
     }
     if (content != null) return _findSenseListChildren(content, depth + 1);
   } else if (node is List) {
@@ -860,9 +1014,20 @@ void preparePitchesYomichanFormat({
     String filename = path.basename(file.path);
     if (filename.startsWith('term_meta_bank')) {
       List<dynamic> items = jsonDecode(file.readAsStringSync());
-      pitchTotal += items.length;
-      freqTotal += items.length;
-      params.send(t.import_found_pitch(count: pitchTotal));
+      for (final item in items) {
+        final type = item is List && item.length > 1 ? item[1] : null;
+        if (type == 'pitch') {
+          pitchTotal++;
+        } else if (type == 'freq') {
+          freqTotal++;
+        }
+      }
+      if (pitchTotal > 0) {
+        params.send(t.import_found_pitch(count: pitchTotal));
+      }
+      if (freqTotal > 0) {
+        params.send(t.import_found_frequency(count: freqTotal));
+      }
     }
   }
 
@@ -890,7 +1055,10 @@ void preparePitchesYomichanFormat({
         final List<Map<String, dynamic>> distinctPitchJsons =
             List<Map<String, dynamic>>.from(data['pitches']);
         for (final distinctPitch in distinctPitchJsons) {
-          final int downstep = distinctPitch['position'];
+          final int? downstep = _parsePitchPosition(distinctPitch['position']);
+          // An unparseable position used to throw a cast error here and
+          // roll back the entire import.
+          if (downstep == null) continue;
           final pitch = DictionaryPitch(downstep: downstep);
           pitch.dictionary.value = params.dictionary;
           pitch.heading.value = heading;
@@ -930,6 +1098,23 @@ void preparePitchesYomichanFormat({
   }
 }
 
+/// Convert a term-meta pitch `position` to a downstep mora index. The schema
+/// allows either the downstep as an integer or the pitch pattern as a string
+/// of `H`/`L` morae (e.g. `"LHHL"` → 3, `"HL"` → 1, `"LHH"` → 0).
+int? _parsePitchPosition(dynamic position) {
+  if (position is int) return position;
+  if (position is num) return position.toInt();
+  if (position is String) {
+    final pattern = position.trim().toUpperCase();
+    final asInt = int.tryParse(pattern);
+    if (asInt != null) return asInt;
+    if (pattern.isEmpty || !RegExp(r'^[HL]+$').hasMatch(pattern)) return null;
+    final drop = pattern.indexOf('HL');
+    return drop == -1 ? 0 : drop + 1;
+  }
+  return null;
+}
+
 /// No-op for Yomichan: frequency rows are imported alongside pitches in
 /// [preparePitchesYomichanFormat] so each `term_meta_bank_*.json` file is
 /// parsed exactly once.
@@ -958,82 +1143,75 @@ class _FreqShape {
   final String displayValue;
 }
 
+/// Parse one `type == 'freq'` term-meta payload. Per the Yomitan schema the
+/// payload is a number, a string, `{value, displayValue?}`, or
+/// `{reading, frequency}` where `frequency` is any of the former three.
+/// Returns null for shapes that carry no usable value.
 _FreqShape? _parseFreqItem(String term, dynamic raw) {
-  if (raw is double) {
-    final displayValue =
-        (raw % 1 == 0) ? raw.toInt().toString() : raw.toString();
-    return _FreqShape(
-      term: term,
-      reading: '',
-      value: raw,
-      displayValue: displayValue,
-    );
-  }
-
-  if (raw is int) {
-    return _FreqShape(
-      term: term,
-      reading: '',
-      value: raw.toDouble(),
-      displayValue: raw.toString(),
-    );
-  }
-
+  String reading = '';
+  dynamic frequency = raw;
   if (raw is Map) {
-    final data = Map<String, dynamic>.from(raw);
-    final reading = data['reading'] ?? '';
-
-    if (data['frequency'] is Map) {
-      final freqMap = Map<String, dynamic>.from(data['frequency']);
-      final num number = freqMap['value'] ?? 0;
-      return _FreqShape(
-        term: term,
-        reading: reading,
-        value: number.toDouble(),
-        displayValue: freqMap['displayValue'] ?? '',
-      );
-    }
-
-    if (data['displayValue'] != null) {
-      final num number = data['value'] ?? 0;
-      return _FreqShape(
-        term: term,
-        reading: reading,
-        value: number.toDouble(),
-        displayValue: data['displayValue'],
-      );
-    }
-
-    if (data['value'] != null) {
-      final num number = data['value'] ?? 0;
-      return _FreqShape(
-        term: term,
-        reading: reading,
-        value: number.toDouble(),
-        displayValue: number.toInt().toString(),
-      );
-    }
-
-    if (data['frequency'] is num) {
-      final num frequencyValue = data['frequency'];
-      final displayValue = (frequencyValue % 1 == 0)
-          ? frequencyValue.toInt().toString()
-          : frequencyValue.toDouble().toString();
-      return _FreqShape(
-        term: term,
-        reading: reading,
-        value: frequencyValue.toDouble(),
-        displayValue: displayValue,
-      );
-    }
-
-    return null;
+    final rawReading = raw['reading'];
+    if (rawReading is String) reading = rawReading;
+    if (raw.containsKey('frequency')) frequency = raw['frequency'];
   }
+
+  final parsed = _parseFrequencyValue(frequency);
+  if (parsed == null) return null;
 
   return _FreqShape(
     term: term,
-    reading: '',
-    value: 0,
-    displayValue: raw.toString(),
+    reading: reading,
+    value: parsed.$1,
+    displayValue: parsed.$2,
   );
+}
+
+/// Returns `(sortValue, displayValue)` for a frequency payload, or null.
+(double, String)? _parseFrequencyValue(dynamic frequency) {
+  if (frequency is num) {
+    return (frequency.toDouble(), _formatFrequencyNumber(frequency));
+  }
+
+  if (frequency is String) {
+    final display = frequency.trim();
+    if (display.isEmpty) return null;
+    // Strings such as "1234" or "1234㋕" still sort by their leading number.
+    return (_leadingNumber(display)?.toDouble() ?? 0, display);
+  }
+
+  if (frequency is Map) {
+    final rawValue = frequency['value'];
+    final num? value = rawValue is num
+        ? rawValue
+        : rawValue is String
+            ? _leadingNumber(rawValue)
+            : null;
+    final rawDisplay = frequency['displayValue'];
+    final String? display = rawDisplay is String && rawDisplay.trim().isNotEmpty
+        ? rawDisplay.trim()
+        : null;
+
+    if (value == null && display == null) return null;
+    // `displayValue` is optional in the schema; without a fallback these
+    // frequencies rendered as blank chips.
+    return (
+      value?.toDouble() ?? _leadingNumber(display!)?.toDouble() ?? 0,
+      display ?? _formatFrequencyNumber(value!),
+    );
+  }
+
+  return null;
+}
+
+/// Format a frequency rank without a trailing `.0` for whole numbers.
+String _formatFrequencyNumber(num number) {
+  return number % 1 == 0 ? number.toInt().toString() : number.toString();
+}
+
+final RegExp _leadingNumberPattern = RegExp(r'^\s*(-?\d+(?:\.\d+)?)');
+
+num? _leadingNumber(String text) {
+  final match = _leadingNumberPattern.firstMatch(text);
+  return match == null ? null : num.tryParse(match.group(1)!);
 }

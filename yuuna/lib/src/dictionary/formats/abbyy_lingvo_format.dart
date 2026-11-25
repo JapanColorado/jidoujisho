@@ -107,7 +107,10 @@ void prepareEntriesAbbyyLingvoFormat({
     String term = '';
     final buffer = StringBuffer();
 
-    for (String line in lines) {
+    // An entry is only written when the next headword line is reached, so a
+    // trailing empty sentinel line flushes the final entry for files that
+    // don't end with a newline (it was silently dropped before).
+    for (String line in [...lines, '']) {
       if (line.startsWith('#')) continue;
 
       if (line.characters.isNotEmpty &&
