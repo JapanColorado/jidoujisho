@@ -82,6 +82,27 @@ class DictionaryEntry {
   /// Each dictionary entry may have a set of tags.
   final IsarLinks<DictionaryTag> tags = IsarLinks<DictionaryTag>();
 
+  /// Display/export order for a heading's entries: by dictionary order,
+  /// then by popularity (Jitendex gives priority entries a higher score),
+  /// then by id. Ids are assigned in import order, which keeps the senses
+  /// split from one Jitendex entry in their original ①②③ order; Dart's
+  /// [List.sort] is not stable for longer lists, so without it equal keys
+  /// could be reordered. [orderByDictionaryName] maps dictionary names to
+  /// [Dictionary.order]; unknown names sort first.
+  static int compareForDisplay(
+    DictionaryEntry a,
+    DictionaryEntry b,
+    Map<String, int> orderByDictionaryName,
+  ) {
+    final int orderA = orderByDictionaryName[a.dictionary.value?.name] ?? 0;
+    final int orderB = orderByDictionaryName[b.dictionary.value?.name] ?? 0;
+    final int byDictionary = orderA.compareTo(orderB);
+    if (byDictionary != 0) return byDictionary;
+    final int byPopularity = b.popularity.compareTo(a.popularity);
+    if (byPopularity != 0) return byPopularity;
+    return (a.id ?? 0).compareTo(b.id ?? 0);
+  }
+
   @override
   bool operator ==(Object other) => other is DictionaryEntry && id == other.id;
 

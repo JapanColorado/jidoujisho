@@ -82,13 +82,28 @@ class _CreatorPageState extends BasePageState<CreatorPage> {
 
     expandableController =
         ExpandableController(initialExpanded: !isCardEditing);
+
+    // The deck dropdown falls back to the first deck when the saved one no
+    // longer exists in AnkiDroid, but export used the saved name, so cards
+    // went to (and silently re-created) a deck the UI wasn't showing.
+    if (widget.decks.isNotEmpty &&
+        !widget.decks.contains(appModelNoUpdate.lastSelectedDeckName)) {
+      appModelNoUpdate.setLastSelectedDeck(widget.decks.first);
+    }
   }
 
   @override
   void dispose() {
-    for (Field field in appModel.activeFields) {
-      if (field is AudioExportField) {
-        field.onCreatorClose();
+    // Only the card-editing creator owns the field audio players. The Fields
+    // and Enhancements editors are also CreatorPages pushed on top of an
+    // open creator; closing them must not stop that creator's players.
+    // `globalFields` rather than `activeFields`: the profile (and with it
+    // the active fields) can change while the creator is open.
+    if (isCardEditing) {
+      for (Field field in globalFields) {
+        if (field is AudioExportField) {
+          field.onCreatorClose();
+        }
       }
     }
 
@@ -200,7 +215,13 @@ class _CreatorPageState extends BasePageState<CreatorPage> {
 
     if (!_creatorInitialised && isCardEditing) {
       _creatorInitialised = true;
-      initialiseCreator();
+      // After the frame: initialisation notifies the creator provider
+      // synchronously, which must not happen while the tree is building.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          initialiseCreator();
+        }
+      });
     }
 
     return WillPopScope(
@@ -304,12 +325,12 @@ class _CreatorPageState extends BasePageState<CreatorPage> {
       mapping: appModel.lastSelectedMapping,
       deck: appModel.lastSelectedDeckName,
       onSuccess: () {
+        // clearAll already resets unlocked Tags to the saved tags; forcing
+        // them here as well overwrote a locked Tags field.
         creatorModel.clearAll(
           overrideLocks: false,
           savedTags: appModel.savedTags,
         );
-        creatorModel.getFieldController(TagsField.instance).text =
-            appModel.savedTags;
 
         if (appModel.closeCreatorOnExport) {
           if (widget.killOnPop) {
@@ -673,7 +694,10 @@ class _CreatorPageState extends BasePageState<CreatorPage> {
         if (widget.killOnPop) {
           appModel.shutdown();
         } else {
-          Navigator.pop(context);
+          // `maybePop` so [onWillPop] runs: a plain `Navigator.pop` skipped
+          // `clearAll`, leaving the previous card's image and audio on the
+          // field singletons for the next Instant Export to pick up.
+          Navigator.maybePop(context);
         }
       },
     );

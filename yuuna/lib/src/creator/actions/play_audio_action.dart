@@ -63,6 +63,8 @@ class PlayAudioAction extends QuickAction {
         toastLength: Toast.LENGTH_SHORT,
         gravity: ToastGravity.BOTTOM,
       );
+      // Without this the "audio unavailable" toast was shown as well.
+      return;
     }
 
     for (Enhancement? enhancement in audioEnhancements) {

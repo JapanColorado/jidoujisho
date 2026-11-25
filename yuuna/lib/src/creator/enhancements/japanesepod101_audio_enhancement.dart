@@ -55,6 +55,18 @@ class JapanesePod101AudioEnhancement extends AudioEnhancement {
       }
     }
 
+    if (searchTerm == null) {
+      // No text to search; the fallback has already told the user.
+      return;
+    }
+
+    // Clear clips from earlier creator fetches before getting a new one.
+    Directory appDirDoc = await getApplicationSupportDirectory();
+    Directory jpdAudioDir = Directory('${appDirDoc.path}/japanesePod101');
+    if (jpdAudioDir.existsSync()) {
+      jpdAudioDir.deleteSync(recursive: true);
+    }
+
     await audioField.setAudio(
       appModel: appModel,
       creatorModel: creatorModel,
@@ -83,13 +95,15 @@ class JapanesePod101AudioEnhancement extends AudioEnhancement {
     required String term,
     required String reading,
   }) async {
+    // Each fetch gets its own subfolder. Wiping the shared folder here (as
+    // before) also deleted the creator's current term audio whenever the
+    // Play Audio quick action fetched another word, so the card exported
+    // without audio. Old clips are cleared in [enhanceCreatorParams].
     Directory appDirDoc = await getApplicationSupportDirectory();
-    String jpdAudioPath = '${appDirDoc.path}/japanesePod101';
+    String timestamp = DateTime.now().microsecondsSinceEpoch.toString();
+    String jpdAudioPath = '${appDirDoc.path}/japanesePod101/$timestamp';
     Directory jpdAudioDir = Directory(jpdAudioPath);
-    if (jpdAudioDir.existsSync()) {
-      jpdAudioDir.deleteSync(recursive: true);
-    }
-    jpdAudioDir.createSync();
+    jpdAudioDir.createSync(recursive: true);
 
     late String audioUrl;
 

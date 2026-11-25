@@ -78,9 +78,14 @@ class ForvoAudioEnhancement extends AudioEnhancement {
       }
     }
 
+    if (searchTerm == null) {
+      // No text to search; the fallback has already told the user.
+      return;
+    }
+
     List<ForvoResult> results = await getForvoResults(
       appModel: appModel,
-      searchTerm: searchTerm!,
+      searchTerm: searchTerm,
     );
 
     if (cause != EnhancementTriggerCause.manual) {

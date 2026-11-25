@@ -119,11 +119,8 @@ class MeaningField extends Field {
     if (dictionaryName != null) {
       entries = entries.where((e) => dictionaryName == e.dictionary.value?.name).toList();
     }
-    entries.sort((a, b) {
-      final orderA = dictionaryNamesByOrder[a.dictionary.value?.name] ?? 0;
-      final orderB = dictionaryNamesByOrder[b.dictionary.value?.name] ?? 0;
-      return orderA.compareTo(orderB);
-    });
+    entries.sort((a, b) =>
+        DictionaryEntry.compareForDisplay(a, b, dictionaryNamesByOrder));
 
     if (entries.isEmpty) {
       return null;

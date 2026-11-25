@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:network_to_file_image/network_to_file_image.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:yuuna/creator.dart';
@@ -310,17 +309,17 @@ class ImmersionKitEnhancement extends Enhancement {
     required CreatorModel creatorModel,
     required EnhancementTriggerCause cause,
   }) async {
+    // Don't wipe earlier downloads here: the card's current image and
+    // sentence audio may live in them, and the user can still cancel this
+    // dialog. Old folders are removed in [_handleMedia] once new media
+    // actually replaces them.
     Directory appDirDoc = await getApplicationSupportDirectory();
     String immersionKitImagePath = '${appDirDoc.path}/immersion_kit';
     Directory immersionKitImageDir = Directory(immersionKitImagePath);
-    if (immersionKitImageDir.existsSync()) {
-      immersionKitImageDir.deleteSync(recursive: true);
-    }
-    immersionKitImageDir.createSync(recursive: true);
 
-    String timestamp = DateFormat('yyyyMMddTkkmmss').format(DateTime.now());
+    String timestamp = DateTime.now().microsecondsSinceEpoch.toString();
     Directory directory = Directory('${immersionKitImageDir.path}/$timestamp');
-    directory.createSync();
+    directory.createSync(recursive: true);
 
     String searchTerm = creatorModel.getFieldController(field).text;
     List<ImmersionKitResult> exampleSentences = await searchForSentences(
@@ -388,9 +387,21 @@ class ImmersionKitEnhancement extends Enhancement {
     required String searchTerm,
     required bool isAppending,
   }) async {
+    // When replacing (not appending), the previous downloads are no longer
+    // referenced once the new media is set.
+    if (!isAppending && directory.parent.existsSync()) {
+      for (final old in directory.parent.listSync()) {
+        if (old.path != directory.path) {
+          old.deleteSync(recursive: true);
+        }
+      }
+    }
 
+    // "Fill if empty" must look at the field's media, not its text
+    // controller: setting media clears that controller, so the old check
+    // was almost always true and Append replaced the existing image/audio.
     final bool shouldSetImages =
-        !isAppending || creatorModel.getFieldController(ImageField.instance).text.isEmpty;
+        !isAppending || ImageField.instance.exportFile == null;
 
     if (shouldSetImages) {
       final imageUrls = selection
@@ -422,8 +433,8 @@ class ImmersionKitEnhancement extends Enhancement {
       }
     }
 
-    final bool shouldSetAudio = !isAppending ||
-        creatorModel.getFieldController(AudioSentenceField.instance).text.isEmpty;
+    final bool shouldSetAudio =
+        !isAppending || AudioSentenceField.instance.exportFile == null;
 
     if (shouldSetAudio) {
       final firstAudioUrl = selection

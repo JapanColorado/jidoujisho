@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 import 'package:network_to_file_image/network_to_file_image.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:yuuna/creator.dart';
@@ -93,62 +92,90 @@ class BingImagesSearchEnhancement extends ImageEnhancement {
     HeadlessInAppWebView webView = HeadlessInAppWebView(
         initialUrlRequest: URLRequest(
           url: WebUri(
-            "https://www.bing.com/images/search?q=$searchTerm')",
+            // The term was interpolated unencoded, followed by a stray `')`.
+            'https://www.bing.com/images/search'
+            '?q=${Uri.encodeQueryComponent(searchTerm)}',
           ),
         ),
         initialSettings: InAppWebViewSettings(blockNetworkImage: true),
         onLoadStop: (controller, uri) async {
-          Directory appDirDoc = await getApplicationSupportDirectory();
-          String bingImagesPath = '${appDirDoc.path}/bingImages';
-          Directory bingImagesDir = Directory(bingImagesPath);
-          if (bingImagesDir.existsSync()) {
-            if (_bingCache.isEmpty) {
-              bingImagesDir.deleteSync(recursive: true);
-            }
+          // onLoadStop can fire more than once (redirects); scrape once.
+          if (!webViewBusy) {
+            return;
           }
-          bingImagesDir.createSync();
-
-          await Future.delayed(const Duration(milliseconds: 1000), () {});
-
-          dom.Document document = parser.parse(await controller.getHtml());
-
-          List<dom.Element> imgElements =
-              document.getElementsByClassName('iusc');
-
-          String timestamp =
-              DateFormat('yyyyMMddTkkmmss').format(DateTime.now());
-          Directory imageDir = Directory('$bingImagesPath/$timestamp');
-          imageDir.createSync();
-          for (int i = 0; i < imgElements.length; i++) {
-            Map<dynamic, dynamic> imgMap =
-                jsonDecode(imgElements[i].attributes['m']!);
-            String imageURL = imgMap['turl'];
-
-            String imagePath = '${imageDir.path}/$i';
-            File imageFile = File(imagePath);
-
-            /// Instant export requires a file to already be written to the
-            /// file system.
-            if (i == 0) {
-              File networkFile =
-                  await DefaultCacheManager().getSingleFile(imageURL);
-              networkFile.copySync(imagePath);
+          // Always release the waiting loop below: an exception in here used
+          // to leave `webViewBusy` true, so the image field (and Instant
+          // Export, which awaits it) hung forever.
+          try {
+            Directory appDirDoc = await getApplicationSupportDirectory();
+            String bingImagesPath = '${appDirDoc.path}/bingImages';
+            Directory bingImagesDir = Directory(bingImagesPath);
+            if (bingImagesDir.existsSync()) {
+              if (_bingCache.isEmpty) {
+                bingImagesDir.deleteSync(recursive: true);
+              }
             }
-            NetworkToFileImage image = NetworkToFileImage(
-              url: imageURL,
-              file: imageFile,
-            );
+            bingImagesDir.createSync();
 
-            images.add(image);
+            await Future.delayed(const Duration(milliseconds: 1000), () {});
+
+            dom.Document document =
+                parser.parse(await controller.getHtml());
+
+            List<dom.Element> imgElements =
+                document.getElementsByClassName('iusc');
+
+            String timestamp =
+                DateTime.now().microsecondsSinceEpoch.toString();
+            Directory imageDir = Directory('$bingImagesPath/$timestamp');
+            imageDir.createSync();
+            for (int i = 0; i < imgElements.length; i++) {
+              String? metadata = imgElements[i].attributes['m'];
+              if (metadata == null) {
+                continue;
+              }
+              Map<dynamic, dynamic> imgMap = jsonDecode(metadata);
+              String? imageURL = imgMap['turl'];
+              if (imageURL == null) {
+                continue;
+              }
+
+              String imagePath = '${imageDir.path}/${images.length}';
+              File imageFile = File(imagePath);
+
+              /// Instant export requires a file to already be written to the
+              /// file system.
+              if (images.isEmpty) {
+                File networkFile =
+                    await DefaultCacheManager().getSingleFile(imageURL);
+                networkFile.copySync(imagePath);
+              }
+              NetworkToFileImage image = NetworkToFileImage(
+                url: imageURL,
+                file: imageFile,
+              );
+
+              images.add(image);
+            }
+          } catch (e) {
+            debugPrint('Bing image search failed: $e');
+          } finally {
+            webViewBusy = false;
           }
-
-          webViewBusy = false;
         });
 
-    await webView.run();
+    try {
+      await webView.run();
 
-    while (webViewBusy) {
-      await Future.delayed(const Duration(milliseconds: 100), () {});
+      // Give up if the page never finishes loading (offline, blocked).
+      final DateTime deadline =
+          DateTime.now().add(const Duration(seconds: 30));
+      while (webViewBusy && DateTime.now().isBefore(deadline)) {
+        await Future.delayed(const Duration(milliseconds: 100), () {});
+      }
+    } finally {
+      // Each search used to leak a full headless WebView.
+      await webView.dispose();
     }
 
     if (images.isNotEmpty) {

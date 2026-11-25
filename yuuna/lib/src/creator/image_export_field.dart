@@ -138,17 +138,24 @@ abstract class ImageExportField extends Field with ChangeNotifier {
     int newSelectedSuggestionIndex = 0,
   }) {
     creatorModel.getFieldController(this).clear();
-    if (images.isEmpty ||
-        newSelectedSuggestionIndex < 0 &&
-            newSelectedSuggestionIndex >= images.length) {
+    if (images.isEmpty) {
+      // Nothing to show (e.g. generation produced no frames). This used to
+      // clear and then fall through to `images.first`, which threw.
       clearFieldState(
         creatorModel: creatorModel,
       );
+      return;
     }
 
+    // The old range check used `&&` and could never be true.
+    final int index = newSelectedSuggestionIndex >= 0 &&
+            newSelectedSuggestionIndex < images.length
+        ? newSelectedSuggestionIndex
+        : 0;
+
     _imageSuggestions = images;
-    _exportFile = images.first;
-    _indexNotifier.value = newSelectedSuggestionIndex;
+    _exportFile = images[index];
+    _indexNotifier.value = index;
     _currentSearchTerm = searchTermUsed;
     _isSearching = false;
     creatorModel.refresh();

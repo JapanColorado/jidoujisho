@@ -107,15 +107,23 @@ class AudioSentenceField extends AudioExportField {
 
   bool _initialised = false;
 
-  /// Set up audio for new file.
-  Future<void> initialiseAudio(File file) async {
-    _audioPlayer = AudioPlayer();
-    await _audioPlayer.setFilePath(file.path);
-    await _audioPlayer.pause();
-    _positionNotifier.value = _audioPlayer.position;
-    _durationNotifier.value = _audioPlayer.duration ?? Duration.zero;
+  /// Whether [_audioPlayer] has been disposed and must be replaced.
+  bool _playerDisposed = false;
 
+  /// Set up audio for new file.
+  ///
+  /// One player is reused for every clip while the creator is open. This
+  /// used to construct a new [AudioPlayer] per clip without disposing the
+  /// old one, and only the first player ever got the stream listeners, so
+  /// after the second clip the play button, position and slider stopped
+  /// updating and a clip that was already playing could not be stopped.
+  Future<void> initialiseAudio(File file) async {
     if (!_initialised) {
+      if (_playerDisposed) {
+        // The previous player was disposed by [onCreatorClose].
+        _audioPlayer = AudioPlayer();
+        _playerDisposed = false;
+      }
       _audioPlayer.durationStream.listen((duration) {
         _durationNotifier.value = duration;
       });
@@ -126,7 +134,14 @@ class AudioSentenceField extends AudioExportField {
         _playerStateNotifier.value = playerState;
       });
       _initialised = true;
+    } else {
+      await _audioPlayer.stop();
     }
+
+    await _audioPlayer.setFilePath(file.path);
+    await _audioPlayer.pause();
+    _positionNotifier.value = _audioPlayer.position;
+    _durationNotifier.value = _audioPlayer.duration ?? Duration.zero;
   }
 
   /// Clears this field's data. The state refresh afterwards is not performed
@@ -135,7 +150,9 @@ class AudioSentenceField extends AudioExportField {
   void clearFieldState({
     required CreatorModel creatorModel,
   }) {
-    _audioPlayer.stop();
+    if (!_playerDisposed) {
+      _audioPlayer.stop();
+    }
     super.clearFieldState(creatorModel: creatorModel);
   }
 
@@ -317,7 +334,9 @@ class AudioSentenceField extends AudioExportField {
   // Executed on close of the creator screen.
   @override
   void onCreatorClose() async {
+    if (!_initialised) return;
     _initialised = false;
+    _playerDisposed = true;
     await _audioPlayer.stop();
     await _audioPlayer.dispose();
   }

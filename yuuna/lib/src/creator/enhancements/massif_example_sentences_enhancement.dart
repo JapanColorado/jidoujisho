@@ -145,7 +145,7 @@ class MassifExampleSentencesEnhancement extends Enhancement {
 
     List<MassifResult> results = [];
 
-    late http.Response response;
+    http.Response? response;
 
     try {
       final theme = Theme.of(context);
@@ -246,20 +246,21 @@ class MassifExampleSentencesEnhancement extends Enhancement {
               text: text,
             ));
 
-        /// Sort by: longest exact match -> shortest sentence
-        results.sort((a, b) {
-          /// Sort by longest subterm
-          int longestMatch = b.longestExactMatch.compareTo(a.longestExactMatch);
-
-          if (longestMatch != 0) {
-            return longestMatch;
-          }
-
-          return a.text.length.compareTo(b.text.length);
-        });
-
         results.add(result);
       }
+
+      /// Sort by: longest exact match -> shortest sentence. This ran inside
+      /// the loop before each add, so the last result was never sorted.
+      results.sort((a, b) {
+        /// Sort by longest subterm
+        int longestMatch = b.longestExactMatch.compareTo(a.longestExactMatch);
+
+        if (longestMatch != 0) {
+          return longestMatch;
+        }
+
+        return a.text.length.compareTo(b.text.length);
+      });
 
       /// Save this into cache.
       _massifCache[searchTerm] = results;
@@ -269,7 +270,7 @@ class MassifExampleSentencesEnhancement extends Enhancement {
       /// Used to log if this third-party service is down or changes domains.
       appModel.showFailedToCommunicateMessage();
       throw Exception(
-        'Failed to communicate with Massif: ${response.reasonPhrase}',
+        'Failed to communicate with Massif: ${response?.reasonPhrase ?? e}',
       );
     }
   }

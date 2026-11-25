@@ -43,7 +43,10 @@ class PickAudioEnhancement extends AudioEnhancement {
     File file = File(pickedFile.files.single.path!);
 
     Directory appDirDoc = await getApplicationSupportDirectory();
-    String pickAudioPath = '${appDirDoc.path}/audioRecorder';
+    // One folder per field: Term Audio and Sentence Audio each have their own
+    // instance of this enhancement, and the folder is wiped on every pick, so
+    // a shared folder deleted the other field's picked file before export.
+    String pickAudioPath = '${appDirDoc.path}/pickAudio/${field.uniqueKey}';
     Directory pickAudioDir = Directory(pickAudioPath);
     if (pickAudioDir.existsSync()) {
       pickAudioDir.deleteSync(recursive: true);

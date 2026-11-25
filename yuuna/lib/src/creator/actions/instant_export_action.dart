@@ -34,6 +34,16 @@ class InstantExportAction extends QuickAction {
     await appModel.getModelList();
     CreatorModel creatorModel = ref.read(instantExportProvider);
 
+    // Image and audio live on the field singletons, so start from a clean
+    // slate unless a card creator is open and still owns them; otherwise a
+    // previous, abandoned card's screenshot or audio could be exported.
+    if (!appModel.isCreatorOpen) {
+      creatorModel.clearAll(
+        overrideLocks: true,
+        savedTags: appModel.savedTags,
+      );
+    }
+
     Map<Field, String> newTextFields = {};
     for (Field field in appModel.activeFields) {
       String? newTextField = field.onCreatorOpenAction(
@@ -61,6 +71,11 @@ class InstantExportAction extends QuickAction {
         MediaSource mediaSource =
             appModel.getCurrentMediaItem()!.getMediaSource(appModel: appModel);
         if (field is ImageField && mediaSource.overridesAutoImage) {
+          // Same guard as the card creator: the player turns generation off
+          // e.g. while its comments page is open.
+          if (!mediaSource.shouldGenerateImage) {
+            continue;
+          }
           await field.setImages(
             appModel: appModel,
             creatorModel: creatorModel,
@@ -79,6 +94,9 @@ class InstantExportAction extends QuickAction {
           continue;
         }
         if (field is AudioSentenceField && mediaSource.overridesAutoAudio) {
+          if (!mediaSource.shouldGenerateAudio) {
+            continue;
+          }
           await field.setAudio(
             appModel: appModel,
             creatorModel: creatorModel,

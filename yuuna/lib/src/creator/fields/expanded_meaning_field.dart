@@ -60,8 +60,7 @@ class ExpandedMeaningField extends Field {
     }
 
     expandedEntries.sort((a, b) =>
-        dictionaryNamesByOrder[a.dictionary.value!.name]!
-            .compareTo(dictionaryNamesByOrder[b.dictionary.value!.name]!));
+        DictionaryEntry.compareForDisplay(a, b, dictionaryNamesByOrder));
 
     return MeaningField.flattenMeanings(
         appModel: appModel,

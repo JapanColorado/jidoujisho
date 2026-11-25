@@ -46,8 +46,8 @@ class ShareAction extends QuickAction {
         ...entries.where((e) => dictionaryName == e.dictionary.value!.name)
       ];
     }
-    entries.sort((a, b) => dictionaryNamesByOrder[a.dictionary.value!.name]!
-        .compareTo(dictionaryNamesByOrder[b.dictionary.value!.name]!));
+    entries.sort((a, b) =>
+        DictionaryEntry.compareForDisplay(a, b, dictionaryNamesByOrder));
 
     StringBuffer buffer = StringBuffer();
     buffer.write(heading.term);
