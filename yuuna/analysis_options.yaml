@@ -14,6 +14,9 @@ analyzer:
     - '**.freezed.dart'
     - '**.g.dart'
     - '**/generated_plugin_registrant.dart'
+    # Vendored plugin overrides: their tests and examples lack dev dependencies and
+    # produce ~1,400 errors that have nothing to do with the app.
+    - 'packages/**'
 
 linter:
   # The lint rules applied to this project can be customized in the
