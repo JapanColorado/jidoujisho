@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:fluttertoast/fluttertoast.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:spaces/spaces.dart';
 import 'package:url_launcher/url_launcher_string.dart';
@@ -296,8 +297,11 @@ class _SubtitleOptionsDialogPage
                             if (appModel.targetLanguage is JapaneseLanguage) {
                               launchUrlString(
                                   'https://fonts.google.com/?subset=japanese');
+                            } else {
+                              // Previously launched as well, overriding the
+                              // Japanese subset page.
+                              launchUrlString('https://fonts.google.com/');
                             }
-                            launchUrlString('https://fonts.google.com/');
                           },
                           icon: Icons.font_download,
                         ),
@@ -396,7 +400,17 @@ class _SubtitleOptionsDialogPage
         newFontSize >= 0 &&
         newWidth >= 0 &&
         newBlur >= 0) {
-      RegExp(newRegexFilter);
+      // An invalid pattern used to throw out of this method uncaught, so
+      // Save/Set silently did nothing. Tell the user instead.
+      try {
+        RegExp(newRegexFilter);
+      } on FormatException catch (e) {
+        Fluttertoast.showToast(
+          msg: e.message,
+          toastLength: Toast.LENGTH_LONG,
+        );
+        return;
+      }
       try {
         GoogleFonts.getFont(newFontName);
       } catch (e) {

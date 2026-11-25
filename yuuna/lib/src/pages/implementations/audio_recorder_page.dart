@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:audio_session/audio_session.dart';
@@ -41,9 +42,27 @@ class _AudioRecorderDialogPageState
   bool _isRecording = false;
   bool _initialised = false;
 
+  /// Single headphone-unplug subscription; previously a new one was added on
+  /// every play tap and none were ever cancelled.
+  StreamSubscription<void>? _becomingNoisySubscription;
+
   @override
   void initState() {
     super.initState();
+  }
+
+  @override
+  void dispose() {
+    // The dialog can be dismissed by back/tapping outside mid-recording or
+    // mid-playback; without this the microphone kept recording and the
+    // player kept playing (and leaked) after the dialog was gone.
+    if (_isRecording) {
+      RecordMp3.instance.stop();
+    }
+    _becomingNoisySubscription?.cancel();
+    _audioPlayer.dispose();
+    _scrollController.dispose();
+    super.dispose();
   }
 
   @override
@@ -141,7 +160,8 @@ class _AudioRecorderDialogPageState
               ),
             );
 
-            session.becomingNoisyEventStream.listen((event) async {
+            _becomingNoisySubscription ??=
+                session.becomingNoisyEventStream.listen((event) async {
               await _audioPlayer.pause();
               session.setActive(false);
             });
@@ -338,6 +358,7 @@ class _AudioRecorderDialogPageState
           _isRecording = true;
         });
         RecordMp3.instance.start(widget.filePath, (error) {
+          if (!mounted) return;
           setState(() {
             _isRecording = false;
           });

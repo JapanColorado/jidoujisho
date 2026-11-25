@@ -708,39 +708,50 @@ class _ProfilesDialogPageState extends BasePageState<ProfilesDialogPage>
       return;
     }
 
-    /// If this mapping does not already exist in the database.
+    /// If this mapping does not already exist in the database, set its order
+    /// to the next order to be added to the database.
     if (mapping.id == null) {
-      /// Set the order of this mapping to the next order to be added to the
-      /// database.
       int order = appModel.nextMappingOrder;
       newMapping = newMapping.copyWith(order: order);
-
-      /// If the name is blank or the mapping exists, error.
-      if (name.isEmpty ||
-          name.contains('%mappingName%') ||
-          appModel.mappingNameHasDuplicate(newMapping)) {
-        await showDialog(
-          barrierDismissible: true,
-          context: context,
-          builder: (context) => AlertDialog(
-            title: Text(t.error_profile_name),
-            content: Text(
-              t.error_profile_name_content,
-            ),
-            actions: [
-              TextButton(
-                child: Text(t.dialog_close),
-                onPressed: () => Navigator.pop(context),
-              ),
-            ],
-          ),
-        );
-
-        return;
-      }
     }
 
+    /// If the name is blank or another mapping already has it, error. This
+    /// must also run for edits: `label` is a unique index with
+    /// `replace: true`, so renaming a profile to an existing name used to
+    /// silently delete that other profile. [mappingNameHasDuplicate] ignores
+    /// the mapping's own row (same order), so keeping the name is fine.
+    if (name.isEmpty ||
+        name.contains('%mappingName%') ||
+        appModel.mappingNameHasDuplicate(newMapping)) {
+      await showDialog(
+        barrierDismissible: true,
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text(t.error_profile_name),
+          content: Text(
+            t.error_profile_name_content,
+          ),
+          actions: [
+            TextButton(
+              child: Text(t.dialog_close),
+              onPressed: () => Navigator.pop(context),
+            ),
+          ],
+        ),
+      );
+
+      return;
+    }
+
+    /// Renaming the selected profile must keep it selected; otherwise the
+    /// stale preference falls back to the first profile.
+    final bool wasSelected = mapping.id != null &&
+        mapping.label == appModel.lastSelectedMappingName;
+
     appModel.addMapping(newMapping);
+    if (wasSelected && newMapping.label != mapping.label) {
+      await appModel.setLastSelectedMapping(newMapping);
+    }
     navigator.pop();
 
     setState(() {});

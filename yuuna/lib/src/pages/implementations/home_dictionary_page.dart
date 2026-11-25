@@ -30,22 +30,29 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
   void initState() {
     super.initState();
     appModelNoUpdate.dictionarySearchAgainNotifier.addListener(searchAgain);
-    appModelNoUpdate.dictionaryEntriesNotifier.addListener(() {
-      if (mediaType.floatingSearchBarController.isClosed) {
-        if (!appModel.isMediaOpen &&
-            DictionaryMediaType.instance ==
-                appModel.mediaTypes.values
-                    .toList()[appModel.currentHomeTabIndex]) {
-          if (mounted) {
-            setState(() {});
-          }
-        }
+    appModelNoUpdate.dictionaryEntriesNotifier
+        .addListener(onDictionaryEntriesChanged);
+  }
+
+  void onDictionaryEntriesChanged() {
+    if (!mounted) {
+      return;
+    }
+    if (mediaType.floatingSearchBarController.isClosed) {
+      if (!appModel.isMediaOpen &&
+          DictionaryMediaType.instance ==
+              appModel.mediaTypes.values
+                  .toList()[appModel.currentHomeTabIndex]) {
+        setState(() {});
       }
-    });
+    }
   }
 
   @override
   void dispose() {
+    appModelNoUpdate.dictionarySearchAgainNotifier.removeListener(searchAgain);
+    appModelNoUpdate.dictionaryEntriesNotifier
+        .removeListener(onDictionaryEntriesChanged);
     super.dispose();
   }
 
@@ -142,7 +149,13 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
   }
 
   void searchAgain() {
+    if (!mounted) {
+      return;
+    }
     _result = null;
+    // Reset the dedupe guard, or `search` returns early for the same query
+    // and the page is left showing "no results" after a dictionary change.
+    lastQuery = '';
     search(mediaType.floatingSearchBarController.query);
   }
 
@@ -179,19 +192,26 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
       });
     }
 
+    DictionarySearchResult? result;
     try {
-      _result = await appModel.searchDictionary(
+      result = await appModel.searchDictionary(
         searchTerm: query,
         searchWithWildcards: true,
         overrideMaximumTerms: overrideMaximumTerms,
       );
     } finally {
-      if (_result != null) {
+      // Only the search for the current query may replace the result; an
+      // earlier, slower search finishing late used to overwrite it.
+      if (result != null && query == mediaType.floatingSearchBarController.query) {
+        _result = result;
+      }
+      if (result != null) {
+        final DictionarySearchResult found = result;
         if (query == mediaType.floatingSearchBarController.query) {
           if (mounted) {
             setState(() {
               _isSearching = false;
-              _showMore = _result!.headings.length < overrideMaximumTerms!;
+              _showMore = found.headings.length < overrideMaximumTerms!;
             });
           }
           Future.delayed(historyDelay, () async {
@@ -200,8 +220,8 @@ class _HomeDictionaryPageState<T extends BaseTabPage> extends BaseTabPageState {
                 historyKey: mediaType.uniqueKey,
                 searchTerm: mediaType.floatingSearchBarController.query,
               );
-              if (_result!.headings.isNotEmpty) {
-                appModel.addToDictionaryHistory(result: _result!);
+              if (found.headings.isNotEmpty) {
+                appModel.addToDictionaryHistory(result: found);
               }
             }
           });

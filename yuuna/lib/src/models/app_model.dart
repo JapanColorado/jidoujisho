@@ -170,6 +170,11 @@ class AppModel with ChangeNotifier {
   /// For refreshing on dictionary result additions.
   void refreshDictionaryHistory() {
     dictionaryMenuNotifier.notifyListeners();
+    // Nothing listens to [dictionaryMenuNotifier]; the dictionary tab
+    // refreshes through its tab notifier, so history added from inside the
+    // tab (e.g. a lookup from a history card) didn't show until some other
+    // rebuild.
+    DictionaryMediaType.instance.refreshTab();
   }
 
   /// Used to strip emoji from search terms.

@@ -68,6 +68,10 @@ class _RecursiveDictionaryPageState
 
   @override
   void dispose() {
+    // Every lookup pushes one of these pages; without this each one stayed
+    // registered (and alive) for the rest of the session.
+    appModelNoUpdate.dictionarySearchAgainNotifier.removeListener(searchAgain);
+    _controller.dispose();
     super.dispose();
   }
 
@@ -163,7 +167,12 @@ class _RecursiveDictionaryPageState
   }
 
   void searchAgain() {
+    if (!mounted) {
+      return;
+    }
     _result = null;
+    // Reset the dedupe guard so the same query actually searches again.
+    lastQuery = '';
     search(_controller.query);
   }
 
@@ -200,19 +209,25 @@ class _RecursiveDictionaryPageState
       });
     }
 
+    DictionarySearchResult? result;
     try {
-      _result = await appModel.searchDictionary(
+      result = await appModel.searchDictionary(
         searchTerm: query,
         searchWithWildcards: true,
         overrideMaximumTerms: overrideMaximumTerms,
       );
     } finally {
-      if (_result != null) {
+      // Only the search for the current query may replace the result.
+      if (result != null && query == _controller.query) {
+        _result = result;
+      }
+      if (result != null) {
+        final DictionarySearchResult found = result;
         if (query == _controller.query) {
           if (mounted) {
             setState(() {
               _isSearching = false;
-              _showMore = _result!.headings.length < overrideMaximumTerms!;
+              _showMore = found.headings.length < overrideMaximumTerms!;
             });
           }
           Future.delayed(historyDelay, () async {
@@ -222,8 +237,8 @@ class _RecursiveDictionaryPageState
                 searchTerm: _controller.query,
               );
             }
-            if (_result!.headings.isNotEmpty) {
-              appModel.addToDictionaryHistory(result: _result!);
+            if (found.headings.isNotEmpty) {
+              appModel.addToDictionaryHistory(result: found);
             }
           });
         }

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_session/audio_session.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:collection/collection.dart';
@@ -49,8 +51,14 @@ class _ImmersionKitSentencesDialogPageState
     });
   }
 
+  /// Single headphone-unplug subscription; previously a new one was added on
+  /// every play and none were cancelled, so stale ones kept calling into the
+  /// disposed player.
+  StreamSubscription<void>? _becomingNoisySubscription;
+
   @override
   void dispose() {
+    _becomingNoisySubscription?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -79,7 +87,8 @@ class _ImmersionKitSentencesDialogPageState
       ),
     );
 
-    session.becomingNoisyEventStream.listen((event) async {
+    _becomingNoisySubscription ??=
+        session.becomingNoisyEventStream.listen((event) async {
       await _audioPlayer.stop();
       session.setActive(false);
     });

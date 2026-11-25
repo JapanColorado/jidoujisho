@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:audio_session/audio_session.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
@@ -42,8 +44,14 @@ class _ForvoAudioDialogPageState extends BasePageState<ForvoAudioDialogPage> {
     });
   }
 
+  /// Single headphone-unplug subscription; previously a new one was added on
+  /// every play and none were cancelled, so stale ones kept calling into the
+  /// disposed player.
+  StreamSubscription<void>? _becomingNoisySubscription;
+
   @override
   void dispose() {
+    _becomingNoisySubscription?.cancel();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -72,7 +80,8 @@ class _ForvoAudioDialogPageState extends BasePageState<ForvoAudioDialogPage> {
       ),
     );
 
-    session.becomingNoisyEventStream.listen((event) async {
+    _becomingNoisySubscription ??=
+        session.becomingNoisyEventStream.listen((event) async {
       await _audioPlayer.stop();
       session.setActive(false);
     });

@@ -20,18 +20,43 @@ abstract class BasePage extends ConsumerStatefulWidget {
 /// define shortcuts for common lengthy methods across UI code.
 class BasePageState<T extends BasePage> extends ConsumerState<T> {
   /// Access the global model responsible for app-wide state management.
-  AppModel get appModel => ref.watch(appProvider);
+  AppModel get appModel =>
+      _canUseRef ? _appModel = ref.watch(appProvider) : _appModel;
 
   /// Access the global model responsible for creator state management.
-  CreatorModel get creatorModel => ref.watch(creatorProvider);
+  CreatorModel get creatorModel => _canUseRef
+      ? _creatorModel = ref.watch(creatorProvider)
+      : _creatorModel;
 
   /// Access the global model responsible for app-wide state management without
   /// listening to state updates. Useful when accessing state from [initState].
-  AppModel get appModelNoUpdate => ref.read(appProvider);
+  AppModel get appModelNoUpdate =>
+      _canUseRef ? _appModel = ref.read(appProvider) : _appModel;
 
   /// Access the global model responsible for creator state management. without
   /// listening to state updates. Useful when accessing state from [initState].
-  CreatorModel get creatorModelNoUpdate => ref.read(creatorProvider);
+  CreatorModel get creatorModelNoUpdate => _canUseRef
+      ? _creatorModel = ref.read(creatorProvider)
+      : _creatorModel;
+
+  /// Last models read through [ref]. Flutter clears the element's widget
+  /// before calling [dispose], and riverpod throws `Cannot use "ref" after
+  /// the widget was disposed` from then on, so any `dispose` that touched
+  /// [appModel] (removing listeners, closing audio players) used to throw
+  /// and skip the rest of its cleanup, including `super.dispose()`. Both
+  /// providers are app-lifetime singletons, so the cached instances are the
+  /// same objects [ref] would return.
+  late AppModel _appModel;
+  late CreatorModel _creatorModel;
+
+  bool get _canUseRef => mounted && context.mounted;
+
+  @override
+  void initState() {
+    super.initState();
+    _appModel = ref.read(appProvider);
+    _creatorModel = ref.read(creatorProvider);
+  }
 
   /// Shortcut for accessing the app-wide theme-defined text theme.
   TextTheme get textTheme => Theme.of(context).textTheme;

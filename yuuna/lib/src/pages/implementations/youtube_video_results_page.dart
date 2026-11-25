@@ -62,7 +62,10 @@ class _YoutubeVideoResultsPageState
           const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
       scrollController: _scrollController,
       pagingController: widget.pagingController,
-      key: UniqueKey(),
+      // Keyed on the controller rather than `UniqueKey()`: a fresh key on
+      // every rebuild (any tab refresh, e.g. closing a video) recreated the
+      // list and threw away the scroll position.
+      key: ValueKey(widget.pagingController),
       builderDelegate: PagedChildBuilderDelegate<MediaItem>(
         noItemsFoundIndicatorBuilder: (context) {
           return Center(

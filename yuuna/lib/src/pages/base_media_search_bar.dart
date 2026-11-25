@@ -85,6 +85,9 @@ abstract class BaseMediaSearchBarState<T extends BaseMediaSearchBar>
         );
         if (newItems != null && newItems.isNotEmpty) {
           pagingController?.appendPage(newItems, 2);
+        } else {
+          // No results: end the list instead of spinning forever.
+          pagingController?.appendLastPage([]);
         }
       } catch (e) {
         pagingController?.appendLastPage([]);
@@ -97,7 +100,11 @@ abstract class BaseMediaSearchBarState<T extends BaseMediaSearchBar>
             pageKey: pageKey,
           );
           if (newItems != null && newItems.isNotEmpty) {
-            pagingController?.appendPage(newItems, pageKey);
+            // The next key must advance; passing `pageKey` re-requested the
+            // same page forever and appended its items again each time.
+            pagingController?.appendPage(newItems, pageKey + 1);
+          } else {
+            pagingController?.appendLastPage([]);
           }
         } catch (e) {
           pagingController?.appendLastPage([]);
@@ -127,6 +134,7 @@ abstract class BaseMediaSearchBarState<T extends BaseMediaSearchBar>
     }
 
     mediaSource.generateSearchSuggestions(query).then((newSuggestions) {
+      if (!mounted) return;
       _searchSuggestions = newSuggestions;
       setState(() {});
     });

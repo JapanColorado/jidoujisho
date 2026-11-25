@@ -503,7 +503,7 @@ class _DictionaryDialogPageState extends BasePageState with ChangeNotifier {
         label: dictionary.isHidden(appModel.targetLanguage)
             ? t.options_show
             : t.options_hide,
-        icon: dictionary.isCollapsed(appModel.targetLanguage)
+        icon: dictionary.isHidden(appModel.targetLanguage)
             ? Icons.visibility
             : Icons.visibility_off,
         action: () {

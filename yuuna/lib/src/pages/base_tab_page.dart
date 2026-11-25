@@ -21,10 +21,24 @@ abstract class BaseTabPage extends BasePage {
 /// was implemented to define shortcuts for common lengthy methods across UI
 /// code.
 abstract class BaseTabPageState<T extends BaseTabPage> extends BasePageState {
+  /// The notifier [refresh] was registered on, kept so [dispose] removes it
+  /// from the same instance.
+  late final ChangeNotifier _tabRefreshNotifier;
+
   @override
   void initState() {
     super.initState();
-    mediaType.tabRefreshNotifier.addListener(refresh);
+    _tabRefreshNotifier = mediaType.tabRefreshNotifier;
+    _tabRefreshNotifier.addListener(refresh);
+  }
+
+  @override
+  void dispose() {
+    // Without this, every disposed tab/results page stayed registered on
+    // the global notifier: it leaked, and the next tab refresh (e.g. closing
+    // a video) called setState on a defunct State.
+    _tabRefreshNotifier.removeListener(refresh);
+    super.dispose();
   }
 
   /// Refresh this tab.
