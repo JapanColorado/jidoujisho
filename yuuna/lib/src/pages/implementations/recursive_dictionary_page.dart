@@ -53,7 +53,7 @@ class _RecursiveDictionaryPageState
       _controller.open();
 
       Future.delayed(const Duration(milliseconds: 50), () {
-        FocusScope.of(context).unfocus();
+        if (mounted) FocusScope.of(context).unfocus();
       });
 
       appModel.addToSearchHistory(

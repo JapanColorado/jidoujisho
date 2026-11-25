@@ -8,6 +8,7 @@ import 'package:flutter_html_table/flutter_html_table.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:html/dom.dart' as dom;
 import 'package:path/path.dart' as path;
+import 'package:url_launcher/url_launcher.dart';
 import 'package:yuuna/dictionary.dart';
 import 'package:yuuna/models.dart';
 import 'package:yuuna/utils.dart';
@@ -466,6 +467,62 @@ void _stripListStyleType(dom.Element el) {
   }
 }
 
+/// Resolve the dictionary search a link inside a definition should run.
+///
+/// Yomitan internal links look like `?query=規模の経済&wildcards=off&…`
+/// (percent-encoded), so the query parameter is read from the href. Using the
+/// raw href or the link text instead searched for `…&wildcards=off`, or for
+/// the term with its furigana glued in (`規き模ぼ…`) when the link wraps
+/// `<ruby>`. Returns null when there is nothing to search for.
+String? _anchorSearchQuery(Map<Object, String> attributes, dom.Element? element) {
+  final href = attributes['href']?.trim();
+  if (href != null && href.startsWith('?')) {
+    try {
+      final query = Uri.splitQueryString(href.substring(1))['query']?.trim();
+      if (query != null && query.isNotEmpty) return query;
+    } on FormatException {
+      // Malformed percent-encoding; fall back to the link text below.
+    }
+  }
+
+  final query = attributes['query']?.trim();
+  if (query != null && query.isNotEmpty) return query;
+
+  final text = element == null ? '' : _textWithoutRuby(element).trim();
+  return text.isEmpty ? null : text;
+}
+
+/// Text content of [node] with `<rt>`/`<rp>` furigana annotations skipped.
+String _textWithoutRuby(dom.Node node) {
+  if (node is dom.Text) return node.text;
+  if (node is dom.Element && (node.localName == 'rt' || node.localName == 'rp')) {
+    return '';
+  }
+  return node.nodes.map(_textWithoutRuby).join();
+}
+
+/// Handle a tap on an `<a>` in a definition: external web links open in the
+/// browser, everything else searches the dictionary.
+void _handleAnchorTap(
+  String? url,
+  Map<String, String> attributes,
+  dom.Element? element,
+  void Function(String) onSearch,
+) {
+  final href = (url ?? attributes['href'])?.trim();
+  if (href != null &&
+      (href.startsWith('http://') || href.startsWith('https://'))) {
+    final uri = Uri.tryParse(href);
+    if (uri != null) {
+      launchUrl(uri, mode: LaunchMode.externalApplication);
+      return;
+    }
+  }
+
+  final query = _anchorSearchQuery(attributes, element);
+  if (query != null) onSearch(query);
+}
+
 /// Get the [Directory] used as a resource directory for a certain [Dictionary].
 final dictionaryResourceDirectoryProvider =
     Provider.family<Directory, int>((ref, dictionaryId) {
@@ -607,7 +664,7 @@ class _JitendexCalloutExtension extends HtmlExtension {
       data: el.innerHtml,
       shrinkWrap: true,
       onAnchorTap: (url, attributes, element) {
-        onSearch.call(attributes['query'] ?? element?.text ?? '');
+        _handleAnchorTap(url, attributes, element, onSearch);
       },
       style: {
         '*': Style(fontSize: FontSize(fontSize)),
@@ -663,9 +720,9 @@ class _JitendexCalloutExtension extends HtmlExtension {
 
     // See-also.
     final anchor = el.querySelector('a[href]');
-    final query = anchor?.attributes['href']?.replaceFirst('?query=', '') ??
-        anchor?.text.trim() ??
-        '';
+    final query = anchor == null
+        ? ''
+        : _anchorSearchQuery(anchor.attributes, anchor) ?? '';
     return WidgetSpan(
       child: JidoujishoCalloutBox(
         accent: _seeAlsoAccent,
@@ -726,7 +783,7 @@ class DictionaryHtmlWidget extends ConsumerWidget {
         data: ref.watch(dictionaryEntryHtmlProvider(entry)),
         shrinkWrap: true,
         onAnchorTap: (url, attributes, element) {
-          onSearch.call(attributes['query'] ?? element?.text ?? 'f');
+          _handleAnchorTap(url, attributes, element, onSearch);
         },
         // Note: no `color` on '*' — that would override every dictionary's
         // inline `style="color:..."`. Default text color comes from the
