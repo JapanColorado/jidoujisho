@@ -127,6 +127,31 @@ abstract class PlayerMediaSource extends MediaSource {
       useCurrentTime = true;
     }
 
+    VlcPlayerController? playerController = appModel.currentPlayerController;
+    if (playerController == null) {
+      return [];
+    }
+
+    // Video positions to capture. With no subtitle to anchor to (e.g. the
+    // creator opened from the comments page between lines) use the current
+    // position; `subtitles!` used to throw here.
+    Duration delay = Duration(milliseconds: options?.subtitleDelay ?? 0);
+    List<Duration> captureTimes;
+    if (subtitles == null || subtitles.isEmpty || useCurrentTime) {
+      captureTimes = [playerController.value.position];
+    } else {
+      captureTimes = subtitles.map((subtitle) {
+        int msMean = ((subtitle.start.inMilliseconds +
+                    subtitle.end.inMilliseconds) /
+                2)
+            .floor();
+        // A cue is on screen at video time `start - delay`, the same shift
+        // generateAudio applies.
+        Duration time = Duration(milliseconds: msMean) - delay;
+        return time.isNegative ? Duration.zero : time;
+      }).toList();
+    }
+
     List<NetworkToFileImage> imageFiles = [];
     Directory appDirDoc = await getApplicationSupportDirectory();
     String playerPreviewPath = '${appDirDoc.path}/playerImagePreview';
@@ -140,8 +165,7 @@ abstract class PlayerMediaSource extends MediaSource {
     Directory imageDir = Directory('$playerPreviewPath/$timestamp');
     imageDir.createSync();
 
-    for (int index = 0; index < subtitles!.length; index++) {
-      Subtitle subtitle = subtitles[index];
+    for (int index = 0; index < captureTimes.length; index++) {
       File imageFile = appModel.getPreviewImageFile(imageDir, index);
 
       String outputPath = imageFile.path;
@@ -149,18 +173,8 @@ abstract class PlayerMediaSource extends MediaSource {
         imageFile.deleteSync();
       }
 
-      int msStart = subtitle.start.inMilliseconds;
-      int msEnd = subtitle.end.inMilliseconds;
-      int msMean = ((msStart + msEnd) / 2).floor();
-      Duration currentTime = Duration(milliseconds: msMean);
-
-      VlcPlayerController playerController = appModel.currentPlayerController!;
-      if (useCurrentTime) {
-        currentTime = Duration(
-            milliseconds: playerController.value.position.inMilliseconds);
-      }
-
-      String timestamp = JidoujishoTimeFormat.getFfmpegTimestamp(currentTime);
+      String timestamp =
+          JidoujishoTimeFormat.getFfmpegTimestamp(captureTimes[index]);
       String inputPath = item.mediaIdentifier;
       MediaSource source = item.getMediaSource(appModel: appModel);
       if (source is PlayerYoutubeSource) {
@@ -171,15 +185,13 @@ abstract class PlayerMediaSource extends MediaSource {
           '-ss $timestamp -y -i "$inputPath" -frames:v 1 -q:v 2 "$outputPath"';
 
       final FlutterFFmpeg flutterFFmpeg = FlutterFFmpeg();
-      await flutterFFmpeg.execute(command);
+      // `execute` completes when ffmpeg exits. The old code instead waited
+      // for the file to appear, with no timeout, unless ffmpeg printed one
+      // specific message; audio-only files, missing files and expired
+      // stream URLs fail differently and hung the creator forever.
+      int returnCode = await flutterFFmpeg.execute(command);
 
-      String output = await FlutterFFmpegConfig().getLastCommandOutput();
-
-      if (!output.contains('Output file is empty, nothing was encoded')) {
-        while (!imageFile.existsSync()) {
-          await Future.delayed(const Duration(milliseconds: 100));
-        }
-
+      if (returnCode == 0 && imageFile.existsSync()) {
         NetworkToFileImage networkToFileImage =
             NetworkToFileImage(file: imageFile);
 
@@ -225,7 +237,10 @@ abstract class PlayerMediaSource extends MediaSource {
     String timeStart = '';
     String timeEnd = '';
 
-    VlcPlayerController playerController = appModel.currentPlayerController!;
+    VlcPlayerController? playerController = appModel.currentPlayerController;
+    if (playerController == null) {
+      return null;
+    }
     Map<int, String> embeddedTracks = await playerController.getAudioTracks();
 
     int audioIndex = await playerController.getAudioTrack() ?? 0;
@@ -247,7 +262,12 @@ abstract class PlayerMediaSource extends MediaSource {
       subtitles ??= [appModel.currentSubtitle.value!];
     }
 
-    Duration adjustedStart = subtitles!.first.start - delay - allowance;
+    if (subtitles == null || subtitles.isEmpty) {
+      // Nothing to cut audio for; `subtitles!` used to throw here.
+      return null;
+    }
+
+    Duration adjustedStart = subtitles.first.start - delay - allowance;
     Duration adjustedEnd = subtitles.last.end - delay + allowance;
     timeStart = JidoujishoTimeFormat.getFfmpegTimestamp(adjustedStart);
     timeEnd = JidoujishoTimeFormat.getFfmpegTimestamp(adjustedEnd);
@@ -265,7 +285,12 @@ abstract class PlayerMediaSource extends MediaSource {
         '-ss $timeStart -to $timeEnd -y -i "$inputPath" -map 0:a:$audioIndex "$outputPath"';
 
     final FlutterFFmpeg flutterFFmpeg = FlutterFFmpeg();
-    await flutterFFmpeg.execute(command);
+    int returnCode = await flutterFFmpeg.execute(command);
+
+    // Don't hand back a path ffmpeg never wrote.
+    if (returnCode != 0 || !audioFile.existsSync()) {
+      return null;
+    }
 
     return audioFile;
   }

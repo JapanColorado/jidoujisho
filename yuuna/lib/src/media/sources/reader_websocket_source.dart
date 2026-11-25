@@ -39,15 +39,27 @@ class ReaderWebsocketSource extends ReaderMediaSource {
   void setServerAddress({
     required String address,
   }) {
-    _channel = WebSocketChannel.connect(
+    late final WebSocketChannel channel;
+    channel = WebSocketChannel.connect(
       Uri.parse(address),
     )..stream.asBroadcastStream().listen((message) {
         _controller.add(null);
         messages.add(message);
       }, onError: (_) {
-        clearServerAddress();
-        mediaType.refreshTab();
+        if (identical(_channel, channel)) {
+          clearServerAddress();
+          mediaType.refreshTab();
+        }
+      }, onDone: () {
+        // The server closed the connection; without this the UI kept
+        // showing "connected". Ignore a stale channel's close after the
+        // user has already reconnected elsewhere.
+        if (identical(_channel, channel)) {
+          clearServerAddress();
+          mediaType.refreshTab();
+        }
       });
+    _channel = channel;
   }
 
   /// Clear server action.

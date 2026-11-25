@@ -148,25 +148,25 @@ class ReaderLyricsSource extends ReaderMediaSource {
         url: WebUri(searchUrl),
       ),
       onLoadStop: (controller, uri) async {
-        text = await controller.evaluateJavascript(source: '''
+        try {
+          text = await controller.evaluateJavascript(source: '''
 [...document.getElementsByClassName('ujudUb')].map((e) => {
     return e.innerText;                                                   
 }).join('\\n\\n');
 ''');
 
-        if (text != null && text!.trim().isEmpty) {
+          if (text != null && text!.trim().isEmpty) {
+            text = null;
+          }
+        } catch (_) {
           text = null;
+        } finally {
+          webViewBusy = false;
         }
-
-        webViewBusy = false;
       },
     );
 
-    await webView.run();
-
-    while (webViewBusy) {
-      await Future.delayed(const Duration(milliseconds: 100), () {});
-    }
+    await _runHeadless(webView, () => webViewBusy);
 
     if (parameters.artist.endsWith(' - Topic') && text == null) {
       return getLyrics(
@@ -191,19 +191,19 @@ class ReaderLyricsSource extends ReaderMediaSource {
               'https://google.com/search?q=$artist+$title+歌詞+site:uta-net.com/song'),
         ),
         onLoadStop: (controller, uri) async {
-          firstResultUrl = await controller.evaluateJavascript(
-              source:
-                  'document.querySelector(".yuRUbf:nth-of-type(1) > a").href');
-
-          googleWebViewBusy = false;
+          try {
+            firstResultUrl = await controller.evaluateJavascript(
+                source:
+                    'document.querySelector(".yuRUbf:nth-of-type(1) > a").href');
+          } catch (_) {
+            firstResultUrl = null;
+          } finally {
+            googleWebViewBusy = false;
+          }
         },
       );
 
-      await googleWebView.run();
-
-      while (googleWebViewBusy) {
-        await Future.delayed(const Duration(milliseconds: 100), () {});
-      }
+      await _runHeadless(googleWebView, () => googleWebViewBusy);
 
       if (firstResultUrl != null) {
         bool utanetWebViewBusy = true;
@@ -216,25 +216,25 @@ class ReaderLyricsSource extends ReaderMediaSource {
             url: WebUri(firstResultUrl!),
           ),
           onLoadStop: (controller, uri) async {
-            text = await controller.evaluateJavascript(source: '''
+            try {
+              text = await controller.evaluateJavascript(source: '''
 [...document.getElementsByTagName('h2')].map((e) => e.remove());
 var kashi = document.getElementsByClassName('row kashi')[0];
 kashi.children[0].children[0].innerText;
 ''');
 
-            if (text != null && text!.trim().isEmpty) {
+              if (text != null && text!.trim().isEmpty) {
+                text = null;
+              }
+            } catch (_) {
               text = null;
+            } finally {
+              utanetWebViewBusy = false;
             }
-
-            utanetWebViewBusy = false;
           },
         );
 
-        await utanetWebView.run();
-
-        while (utanetWebViewBusy) {
-          await Future.delayed(const Duration(milliseconds: 100), () {});
-        }
+        await _runHeadless(utanetWebView, () => utanetWebViewBusy);
       }
     }
 
@@ -307,5 +307,23 @@ kashi.children[0].children[0].innerText;
         ),
       );
     }
+  }
+}
+
+/// Run a headless WebView until [isBusy] reports false (or 30 s pass), then
+/// dispose it. Lyrics lookups used to leak up to three native WebViews per
+/// track and could wait forever if a page never finished loading.
+Future<void> _runHeadless(
+  HeadlessInAppWebView webView,
+  bool Function() isBusy,
+) async {
+  try {
+    await webView.run();
+    final DateTime deadline = DateTime.now().add(const Duration(seconds: 30));
+    while (isBusy() && DateTime.now().isBefore(deadline)) {
+      await Future.delayed(const Duration(milliseconds: 100), () {});
+    }
+  } finally {
+    await webView.dispose();
   }
 }

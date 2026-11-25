@@ -84,6 +84,9 @@ class SubtitleUtils {
             ),
           ),
           metadata: metadata,
+          // Without `source`, a stream intent's `subs.enable` preference
+          // (matched by source filename) could never select a track.
+          source: source,
           type: type,
           index: index,
         );
@@ -97,6 +100,9 @@ class SubtitleUtils {
             ),
           ),
           metadata: metadata,
+          // Without `source`, a stream intent's `subs.enable` preference
+          // (matched by source filename) could never select a track.
+          source: source,
           type: type,
           index: index,
         );

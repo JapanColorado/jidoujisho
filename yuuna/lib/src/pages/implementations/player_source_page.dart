@@ -85,6 +85,13 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   StreamSubscription<Duration>? _seekSubscription;
   StreamSubscription<void>? _rewindSubscription;
   StreamSubscription<void>? _fastForwardSubscription;
+  StreamSubscription<void>? _mediaPauseSubscription;
+  StreamSubscription<void>? _becomingNoisySubscription;
+
+  /// Whether [_playerController] has been assigned. Leaving the page while
+  /// the player was still loading used to read the unassigned `late final`
+  /// in [dispose], which threw and skipped the rest of the cleanup.
+  bool _playerControllerAssigned = false;
 
   Timer? _notPlayingTimer;
 
@@ -103,15 +110,21 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
   }
 
   @override
-  void dispose() async {
+  void dispose() {
     _playPauseSubscription?.cancel();
     _seekSubscription?.cancel();
     _rewindSubscription?.cancel();
     _fastForwardSubscription?.cancel();
+    // These two used to live forever and call into the disposed controller
+    // (opening the creator elsewhere, unplugging headphones).
+    _mediaPauseSubscription?.cancel();
+    _becomingNoisySubscription?.cancel();
 
     WidgetsBinding.instance.removeObserver(this);
 
-    _playerController.dispose();
+    if (_playerControllerAssigned) {
+      _playerController.dispose();
+    }
 
     super.dispose();
   }
@@ -123,7 +136,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
         _lifecycleActive = true;
 
         if (!appModel.playerBackgroundPlay) {
-          _session.setActive(true);
+          _session?.setActive(true);
         } else {
           appModel.audioHandler?.mediaItem.add(
             appModel.audioHandler?.mediaItem.value?.copyWith.call(
@@ -151,7 +164,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       case AppLifecycleState.inactive:
         _lifecycleActive = false;
         if (!appModel.playerBackgroundPlay) {
-          _session.setActive(false);
+          _session?.setActive(false);
         } else {
           if (appModel.showSubtitlesInNotification &&
               _currentSubtitle.value != null) {
@@ -162,8 +175,21 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
             );
           }
         }
+        break;
+      case AppLifecycleState.paused:
+      case AppLifecycleState.detached:
+        _lifecycleActive = false;
+        if (!appModel.playerBackgroundPlay) {
+          _session?.setActive(false);
+        }
 
-        if (source is PlayerNetworkStreamSource) {
+        // Hand the playback position back to the app that launched this
+        // stream and exit. This used to run on `inactive`, which also fires
+        // for the notification shade, the share sheet and recents, and for
+        // streams opened from inside the app, so the whole app quit on any
+        // of those.
+        if (source is PlayerNetworkStreamSource &&
+            appModel.shouldKillMediaOnPop) {
           await ReceiveIntent.setResult(
             kActivityResultOk,
             action: 'is.xyz.mpv.MPVActivity.result',
@@ -175,12 +201,10 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           appModel.shutdown();
         }
         break;
-      case AppLifecycleState.paused:
-      case AppLifecycleState.detached:
       case AppLifecycleState.hidden:
         _lifecycleActive = false;
         if (!appModel.playerBackgroundPlay) {
-          _session.setActive(false);
+          _session?.setActive(false);
         }
         break;
     }
@@ -222,7 +246,9 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
   bool _playerInitialised = false;
 
-  late final AudioSession _session;
+  /// Null until [initialisePlayer] has configured it; lifecycle callbacks
+  /// can arrive before that.
+  AudioSession? _session;
 
   Duration? _bufferingDuration;
 
@@ -247,7 +273,11 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
     await Future.delayed(const Duration(seconds: 1), () {});
 
-    appModel.currentMediaPauseStream.listen((event) {
+    if (!mounted) {
+      return;
+    }
+
+    _mediaPauseSubscription = appModel.currentMediaPauseStream.listen((event) {
       dialogSmartPause();
     });
 
@@ -288,52 +318,64 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           ),
         ],
       );
-    } catch (e) {
-      if (e is VideoUnavailableException || e is VideoUnplayableException) {
-        if (mounted) {
-          showDialog(
-            barrierDismissible: false,
-            context: context,
-            builder: (context) {
-              return AlertDialog(
-                title: Text(
-                  t.video_unavailable,
-                ),
-                content: Text(
-                  t.video_unavailable_content,
-                  textAlign: TextAlign.justify,
-                ),
-                actions: [
-                  TextButton(
-                    onPressed: () async {
-                      if (mounted) {
-                        Navigator.pop(context);
-                      }
+    } catch (e, stack) {
+      // Any failure (not only YouTube's "unavailable" errors) must stop
+      // here: other errors used to be swallowed and fall through to read
+      // the unassigned `futures`, leaving an endless loading spinner.
+      debugPrint('Player setup failed: $e');
+      debugPrint('$stack');
+      final bool unavailable =
+          e is VideoUnavailableException || e is VideoUnplayableException;
+      if (mounted) {
+        showDialog(
+          barrierDismissible: false,
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text(
+                t.video_unavailable,
+              ),
+              content: Text(
+                unavailable ? t.video_unavailable_content : '$e',
+                textAlign: TextAlign.justify,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () async {
+                    if (mounted) {
+                      Navigator.pop(context);
+                    }
 
-                      await onSourcePagePop();
+                    await onSourcePagePop();
 
-                      if (mounted) {
-                        Navigator.pop(context, true);
-                      }
-                      await appModel.closeMedia(
-                        ref: ref,
-                        mediaSource: appModel.currentMediaSource!,
-                        item: widget.item,
-                      );
-                    },
-                    child: Text(t.dialog_close),
-                  ),
-                ],
-              );
-            },
-          );
-        } else {
-          rethrow;
-        }
+                    if (mounted) {
+                      Navigator.pop(context, true);
+                    }
+                    await appModel.closeMedia(
+                      ref: ref,
+                      mediaSource: appModel.currentMediaSource!,
+                      item: widget.item,
+                    );
+                  },
+                  child: Text(t.dialog_close),
+                ),
+              ],
+            );
+          },
+        );
       }
+      return;
+    }
+
+    if (!mounted) {
+      // The page was closed while loading; don't register the player with
+      // the app (notification, audio focus, streams) after the fact.
+      (futures.elementAt(0) as VlcPlayerController).dispose();
+      return;
     }
 
     _playerController = futures.elementAt(0) as VlcPlayerController;
+    _playerControllerAssigned = true;
     _subtitleItems = futures.elementAt(1) as List<SubtitleItem>;
     _transcriptBackgroundNotifier.value = appModel.isTranscriptOpaque;
 
@@ -470,6 +512,10 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       await WakelockPlus.enable();
     }
 
+    if (!mounted) {
+      return;
+    }
+
     _playPauseSubscription = appModel.playStream.listen((_) {
       if (appModel.isCreatorOpen ||
           (_transcriptOpenNotifier.value && !appModel.isTranscriptPlayerMode)) {
@@ -513,15 +559,20 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       _listeningSubtitle.value = getNearestSubtitle();
     });
 
-    _session = await AudioSession.instance;
-    await _session.configure(const AudioSessionConfiguration.music());
+    final AudioSession session = await AudioSession.instance;
+    await session.configure(const AudioSessionConfiguration.music());
+    if (!mounted) {
+      return;
+    }
+    _session = session;
 
-    _session.becomingNoisyEventStream.listen((event) async {
+    _becomingNoisySubscription =
+        session.becomingNoisyEventStream.listen((event) async {
       await _playerController.pause();
-      _session.setActive(false);
+      session.setActive(false);
     });
 
-    _session.setActive(true);
+    session.setActive(true);
 
     setState(() {
       _playerInitialised = true;
@@ -670,8 +721,11 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
                     allowance ||
             _positionNotifier.value >
                 _shadowingSubtitle.value!.end - subtitleDelay + allowance) {
+          // A cue is on screen at video time `start - delay` (see the
+          // `position + delay` lookup above). Seeking to `start + delay`
+          // could land outside the window checked here and re-seek forever.
           _playerController.seekTo(
-              _shadowingSubtitle.value!.start + subtitleDelay - allowance);
+              _shadowingSubtitle.value!.start - subtitleDelay - allowance);
 
           _bufferingNotifier.value = true;
         }
@@ -679,11 +733,11 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
       if (_listeningSubtitle.value != null) {
         if (_positionNotifier.value <
-                _listeningSubtitle.value!.start +
+                _listeningSubtitle.value!.start -
                     subtitleDelay -
                     const Duration(seconds: 15) ||
             _positionNotifier.value >
-                _listeningSubtitle.value!.end +
+                _listeningSubtitle.value!.end -
                     subtitleDelay +
                     const Duration(seconds: 5)) {
           _listeningSubtitle.value = null;
@@ -1357,7 +1411,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           }
 
           if (shadowingSubtitle != null) {
-            duration = shadowingSubtitle.end + subtitleDelay + allowance;
+            duration = shadowingSubtitle.end - subtitleDelay + allowance;
           }
 
           return JidoujishoTimeFormat.getVideoDurationText(duration).trim();
@@ -2030,7 +2084,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           active: appModel.playbackMode == mode,
           action: () {
             appModel.setPlaybackMode(mode);
-            _autoPauseNotifier.value == null;
+            _autoPauseNotifier.value = null;
             refreshSubtitleWidget();
           },
         ),
@@ -2527,12 +2581,12 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       _isMenuHidden.value = false;
 
       await _playerController.pause();
-      _session.setActive(false);
+      _session?.setActive(false);
     } else {
       if (!_playerController.value.isInitialized) {
         _playerController.initialize().then((_) async {
           await _playerController.play();
-          _session.setActive(true);
+          _session?.setActive(true);
           _playPauseAnimationController.forward();
 
           _menuHideTimer?.cancel();
@@ -2544,7 +2598,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
         if (isFinished) {
           await _playerController.stop();
           await _playerController.play();
-          _session.setActive(true);
+          _session?.setActive(true);
           await Future.delayed(const Duration(seconds: 2), () async {
             _menuHideTimer?.cancel();
             _isMenuHidden.value = true;
@@ -2559,7 +2613,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
           _isMenuHidden.value = true;
 
           await _playerController.play();
-          _session.setActive(true);
+          _session?.setActive(true);
         }
       }
     }
@@ -2577,14 +2631,15 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
 
       Subtitle? lastSubtitle;
       for (Subtitle subtitle in _subtitleItem.controller.subtitles) {
-        if (_positionNotifier.value < subtitle.start + subtitleDelay) {
+        if (_positionNotifier.value < subtitle.start - subtitleDelay) {
           return lastSubtitle;
         }
 
         lastSubtitle = subtitle;
       }
 
-      return null;
+      // Past the final cue, the nearest subtitle is the last one.
+      return lastSubtitle;
     }
   }
 
@@ -2613,7 +2668,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       _menuHideTimer?.cancel();
       _dialogSmartPaused = true;
       await _playerController.pause();
-      _session.setActive(false);
+      _session?.setActive(false);
     }
   }
 
@@ -2645,7 +2700,7 @@ class _PlayerSourcePageState extends BaseSourcePageState<PlayerSourcePage>
       }
 
       await _playerController.play();
-      _session.setActive(true);
+      _session?.setActive(true);
     }
 
     _dialogSmartPaused = false;

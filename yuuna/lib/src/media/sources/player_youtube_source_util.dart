@@ -402,8 +402,11 @@ class CaptionParser {
     final captions = <Caption>[];
 
     // Basic XML parsing using regex (consider using xml package for production)
-    final textPattern =
-        RegExp(r'<text start="([\d.]+)" dur="([\d.]+)"[^>]*>(.*?)</text>');
+    // dotAll: two-line cues keep a literal newline inside <text>, and
+    // without it those cues silently didn't match.
+    final textPattern = RegExp(
+        r'<text start="([\d.]+)" dur="([\d.]+)"[^>]*>(.*?)</text>',
+        dotAll: true);
     final matches = textPattern.allMatches(xml);
 
     for (final match in matches) {

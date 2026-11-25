@@ -2395,6 +2395,10 @@ class AppModel with ChangeNotifier {
   /// Whether or not the media item should be killed upon exit.
   bool _shouldKillMediaOnPop = false;
 
+  /// Whether the current media was launched by an external app (an intent)
+  /// and the app should exit when it is closed.
+  bool get shouldKillMediaOnPop => _shouldKillMediaOnPop;
+
   /// A helper function for launching a media source.
   Future<void> openMedia({
     required WidgetRef ref,
@@ -2991,6 +2995,18 @@ class AppModel with ChangeNotifier {
   /// when the media item is launched.
   void addMediaItem(MediaItem item) {
     _database.writeTxnSync(() {
+      // Lists that build fresh items (YouTube search, trending and channel
+      // results) pass position 0; keep the saved progress instead of
+      // resetting it every time the video is reopened from there.
+      final MediaItem? existing =
+          _database.mediaItems.getByUniqueKeySync(item.uniqueKey);
+      if (existing != null && item.position == 0 && existing.position > 0) {
+        item.position = existing.position;
+        if (item.duration == 0) {
+          item.duration = existing.duration;
+        }
+      }
+
       _database.mediaItems.deleteByUniqueKeySync(item.uniqueKey);
       item.id = null;
 
@@ -3002,7 +3018,9 @@ class AppModel with ChangeNotifier {
           .countSync();
 
       if (maximumMediaHistoryItems < countInSameHistory) {
-        int surplus = countInSameHistory - maximumSearchHistoryItems;
+        // Was `- maximumSearchHistoryItems` (60), so passing 100 items
+        // deleted the 41 oldest at once instead of one.
+        int surplus = countInSameHistory - maximumMediaHistoryItems;
         _database.mediaItems
             .filter()
             .mediaTypeIdentifierEqualTo(item.mediaTypeIdentifier)

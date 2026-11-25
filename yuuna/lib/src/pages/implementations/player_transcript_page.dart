@@ -265,15 +265,23 @@ class _PlayerTranscriptPageState
       return;
     }
 
-    int index = _selectedIndexNotifier.value ?? 0;
+    if (widget.subtitles.isEmpty) {
+      return;
+    }
+
+    // -1 means "before the first subtitle". Opening the transcript during an
+    // intro left the index at -2, and the sublists below threw RangeError.
+    int index = (_selectedIndexNotifier.value ?? 0)
+        .clamp(-1, widget.subtitles.length - 1);
+    int before = index < 0 ? 0 : index;
     List<Subtitle> subtitlesToSearch = reversed
         ? [
-            ...widget.subtitles.sublist(0, index).reversed,
+            ...widget.subtitles.sublist(0, before).reversed,
             ...widget.subtitles.sublist(index + 1).reversed,
           ]
         : [
             ...widget.subtitles.sublist(index + 1),
-            ...widget.subtitles.sublist(0, index),
+            ...widget.subtitles.sublist(0, before),
           ];
 
     Subtitle? subtitle = subtitlesToSearch.firstWhereOrNull((subtitle) =>

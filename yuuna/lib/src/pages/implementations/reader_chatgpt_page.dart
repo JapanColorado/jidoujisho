@@ -55,6 +55,10 @@ class _ReaderChatgptPageState extends BaseSourcePageState<ReaderChatgptPage> {
   @override
   void dispose() {
     source.mediaType.tabRefreshNotifier.removeListener(refresh);
+    // A reply still streaming when the tab closed called setState on the
+    // disposed page from onDone and from the stall timer.
+    _streamSubscription?.cancel();
+    _streamSubscription = null;
     super.dispose();
   }
 
@@ -216,6 +220,9 @@ class _ReaderChatgptPageState extends BaseSourcePageState<ReaderChatgptPage> {
   final _buffer = StringBuffer();
   StreamSubscription? _streamSubscription;
 
+  /// Chat model used for replies.
+  static const String _chatModel = 'gpt-4o-mini';
+
   void onSubmitted(String input) async {
     String text = input.trim();
     if (text.isEmpty) {
@@ -248,7 +255,9 @@ class _ReaderChatgptPageState extends BaseSourcePageState<ReaderChatgptPage> {
 
     final chatComplete = _openAI.onChatCompletionSSE(
       request: ChatCompleteText(
-        model: GptTurbo0301ChatModel(),
+        // gpt-3.5-turbo-0301 was shut down by OpenAI, so every request
+        // failed.
+        model: ChatModelFromValue(model: _chatModel),
         messages: await getMessages(),
         maxToken: 1500,
       ),
@@ -278,11 +287,12 @@ class _ReaderChatgptPageState extends BaseSourcePageState<ReaderChatgptPage> {
 
             Fluttertoast.showToast(msg: t.error_chatgpt_response);
 
-            setState(() {
-              _isLoading = false;
-            });
-
-            _controller.text = input;
+            if (mounted) {
+              setState(() {
+                _isLoading = false;
+              });
+              _controller.text = input;
+            }
           }
         });
       },
@@ -293,11 +303,12 @@ class _ReaderChatgptPageState extends BaseSourcePageState<ReaderChatgptPage> {
 
         Fluttertoast.showToast(msg: t.error_chatgpt_response);
 
-        setState(() {
-          _isLoading = false;
-        });
-
-        _controller.text = input;
+        if (mounted) {
+          setState(() {
+            _isLoading = false;
+          });
+          _controller.text = input;
+        }
       },
       onDone: addBotMessage,
     );
@@ -313,6 +324,10 @@ class _ReaderChatgptPageState extends BaseSourcePageState<ReaderChatgptPage> {
         isBot: true,
       ),
     );
+
+    if (!mounted) {
+      return;
+    }
 
     setState(() {
       _isLoading = false;

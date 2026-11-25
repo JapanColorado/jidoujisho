@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:collection/collection.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -35,12 +37,24 @@ class _ReaderLyricsPageState<ReaderLyricsPage> extends BaseSourcePageState {
   final JidoujishoSelectableTextController _selectableTextController =
       JidoujishoSelectableTextController();
 
+  StreamSubscription<void>? _overrideSubscription;
+
   @override
   void initState() {
     super.initState();
-    source.overrideStream.listen((_) {
-      setState(() {});
+    _overrideSubscription = source.overrideStream.listen((_) {
+      if (mounted) {
+        setState(() {});
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    // Previously never cancelled: after switching sources and back, the old
+    // page's listener called setState on a disposed State.
+    _overrideSubscription?.cancel();
+    super.dispose();
   }
 
   @override

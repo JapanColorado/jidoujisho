@@ -158,8 +158,16 @@ class MediaItem {
     int? duration,
     bool? canDelete,
     bool? canEdit,
+    String? extraUrl,
+    String? extra,
+    String? authorIdentifier,
   }) {
+    // `extra`, `extraUrl` and `authorIdentifier` used to be dropped, so e.g.
+    // toggling player orientation lost a network stream's subtitles.
     return MediaItem(
+      extraUrl: extraUrl ?? this.extraUrl,
+      extra: extra ?? this.extra,
+      authorIdentifier: authorIdentifier ?? this.authorIdentifier,
       id: id ?? this.id,
       mediaIdentifier: mediaIdentifier ?? this.mediaIdentifier,
       title: title ?? this.title,

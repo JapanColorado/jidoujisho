@@ -247,7 +247,8 @@ class ReaderMokuroSource extends ReaderMediaSource {
       directory: Directory(path.dirname(filePath)),
     );
 
-    HeadlessInAppWebView webView = HeadlessInAppWebView(
+    late final HeadlessInAppWebView webView;
+    webView = HeadlessInAppWebView(
       initialSettings: InAppWebViewSettings(
         allowFileAccessFromFileURLs: true,
         allowUniversalAccessFromFileURLs: true,
@@ -257,10 +258,17 @@ class ReaderMokuroSource extends ReaderMediaSource {
             'file://$parentDirectory/${Uri.encodeComponent(directoryBasename)}/${Uri.encodeComponent(fileBasename)}'),
       ),
       onLoadStop: (controller, url) async {
-        MediaItem? item = await generateMediaItemFromWebView(
-          appModel: appModel,
-          controller: controller,
-        );
+        MediaItem? item;
+        try {
+          item = await generateMediaItemFromWebView(
+            appModel: appModel,
+            controller: controller,
+          );
+        } finally {
+          // Only needed to read the page's title and URL; it used to stay
+          // alive (holding the whole volume's HTML) after every pick.
+          await webView.dispose();
+        }
         if (item == null) {
           Fluttertoast.showToast(msg: t.invalid_mokuro_file);
         } else {
@@ -284,8 +292,11 @@ class ReaderMokuroSource extends ReaderMediaSource {
     String title = await controller.getTitle() ?? '';
     Uri url = (await controller.getUrl())!..removeFragment();
 
+    // Look up by source, not media type: other reader sources' rows (e.g.
+    // the removed in-app browser's reading list) can share the URL and have
+    // no MediaSource to resolve, which crashed later lookups.
     MediaItem? item = appModel
-        .getMediaTypeHistory(mediaType: mediaType)
+        .getMediaSourceHistory(mediaSource: this)
         .firstWhereOrNull((item) => item.mediaIdentifier == url.toString());
     if (item != null) {
       return item;
