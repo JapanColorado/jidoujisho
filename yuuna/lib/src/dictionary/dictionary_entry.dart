@@ -97,9 +97,13 @@ class DictionaryEntry {
     final int orderA = orderByDictionaryName[a.dictionary.value?.name] ?? 0;
     final int orderB = orderByDictionaryName[b.dictionary.value?.name] ?? 0;
     final int byDictionary = orderA.compareTo(orderB);
-    if (byDictionary != 0) return byDictionary;
+    if (byDictionary != 0) {
+      return byDictionary;
+    }
     final int byPopularity = b.popularity.compareTo(a.popularity);
-    if (byPopularity != 0) return byPopularity;
+    if (byPopularity != 0) {
+      return byPopularity;
+    }
     return (a.id ?? 0).compareTo(b.id ?? 0);
   }
 

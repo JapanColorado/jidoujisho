@@ -479,14 +479,18 @@ String? _anchorSearchQuery(Map<Object, String> attributes, dom.Element? element)
   if (href != null && href.startsWith('?')) {
     try {
       final query = Uri.splitQueryString(href.substring(1))['query']?.trim();
-      if (query != null && query.isNotEmpty) return query;
+      if (query != null && query.isNotEmpty) {
+        return query;
+      }
     } on FormatException {
       // Malformed percent-encoding; fall back to the link text below.
     }
   }
 
   final query = attributes['query']?.trim();
-  if (query != null && query.isNotEmpty) return query;
+  if (query != null && query.isNotEmpty) {
+    return query;
+  }
 
   final text = element == null ? '' : _textWithoutRuby(element).trim();
   return text.isEmpty ? null : text;
@@ -494,7 +498,9 @@ String? _anchorSearchQuery(Map<Object, String> attributes, dom.Element? element)
 
 /// Text content of [node] with `<rt>`/`<rp>` furigana annotations skipped.
 String _textWithoutRuby(dom.Node node) {
-  if (node is dom.Text) return node.text;
+  if (node is dom.Text) {
+    return node.text;
+  }
   if (node is dom.Element && (node.localName == 'rt' || node.localName == 'rp')) {
     return '';
   }
@@ -520,7 +526,9 @@ void _handleAnchorTap(
   }
 
   final query = _anchorSearchQuery(attributes, element);
-  if (query != null) onSearch(query);
+  if (query != null) {
+    onSearch(query);
+  }
 }
 
 /// Get the [Directory] used as a resource directory for a certain [Dictionary].

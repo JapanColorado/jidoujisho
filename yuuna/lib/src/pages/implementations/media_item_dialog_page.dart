@@ -33,10 +33,6 @@ class MediaItemDialogPage extends BasePage {
 class _MediaItemDialogPageState extends BasePageState<MediaItemDialogPage> {
   MediaSource get mediaSource => widget.item.getMediaSource(appModel: appModel);
 
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   Widget build(BuildContext context) {

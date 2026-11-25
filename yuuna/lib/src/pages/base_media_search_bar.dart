@@ -134,7 +134,9 @@ abstract class BaseMediaSearchBarState<T extends BaseMediaSearchBar>
     }
 
     mediaSource.generateSearchSuggestions(query).then((newSuggestions) {
-      if (!mounted) return;
+      if (!mounted) {
+        return;
+      }
       _searchSuggestions = newSuggestions;
       setState(() {});
     });

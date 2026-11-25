@@ -276,7 +276,9 @@ class _HomePageState extends BasePageState<HomePage>
 
     if (selectedAction == null) {
       Future.delayed(const Duration(milliseconds: 50), () {
-        if (mounted) FocusScope.of(context).unfocus();
+        if (mounted) {
+          FocusScope.of(context).unfocus();
+        }
       });
     }
   }

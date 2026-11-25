@@ -170,7 +170,9 @@ class _PlainTextWriter {
     }
 
     final tag = node.localName ?? '';
-    if (_skippedTags.contains(tag)) return;
+    if (_skippedTags.contains(tag)) {
+      return;
+    }
 
     switch (tag) {
       case 'br':
@@ -186,7 +188,9 @@ class _PlainTextWriter {
     }
 
     final isBlock = _blockTags.contains(tag) || tag == 'li';
-    if (isBlock) _newLine();
+    if (isBlock) {
+      _newLine();
+    }
     node.nodes.forEach(write);
     if (isBlock) {
       _newLine();
@@ -215,7 +219,9 @@ class _PlainTextWriter {
         index++;
         final marker = _marker(_listStyleType(child) ?? listStyle, index);
         _newLine();
-        if (marker.isNotEmpty) _pendingPrefix += '$marker ';
+        if (marker.isNotEmpty) {
+          _pendingPrefix += '$marker ';
+        }
         child.nodes.forEach(write);
         _newLine();
       } else {
@@ -244,12 +250,16 @@ class _PlainTextWriter {
   void _writeText(String text) {
     final parts = text.split('\n');
     for (var i = 0; i < parts.length; i++) {
-      if (i > 0) _newLine();
+      if (i > 0) {
+        _newLine();
+      }
       final part = parts[i];
       if (part.trim().isEmpty) {
         // Keep single spaces between inline runs, but never start a line
         // with whitespace.
-        if (_current.isNotEmpty && part.isNotEmpty) _current.write(' ');
+        if (_current.isNotEmpty && part.isNotEmpty) {
+          _current.write(' ');
+        }
         continue;
       }
       if (_current.isEmpty) {
@@ -262,17 +272,23 @@ class _PlainTextWriter {
 
   void _newLine() {
     final line = _current.toString().replaceAll(RegExp(r'[ \t]+$'), '');
-    if (line.trim().isNotEmpty) _lines.add(line.trimLeft());
+    if (line.trim().isNotEmpty) {
+      _lines.add(line.trimLeft());
+    }
     _current.clear();
   }
 
   /// The `list-style-type` declared inline on [element], if any.
   static String? _listStyleType(dom.Element element) {
     final style = element.attributes['style'];
-    if (style == null) return null;
+    if (style == null) {
+      return null;
+    }
     for (final declaration in style.split(';')) {
       final colon = declaration.indexOf(':');
-      if (colon == -1) continue;
+      if (colon == -1) {
+        continue;
+      }
       if (declaration.substring(0, colon).trim() == 'list-style-type') {
         final value = declaration.substring(colon + 1).trim();
         return value.isEmpty ? null : value;
@@ -282,10 +298,14 @@ class _PlainTextWriter {
   }
 
   static String _marker(String listStyle, int index) {
-    if (listStyle == 'none') return '';
+    if (listStyle == 'none') {
+      return '';
+    }
     final quoted = RegExp(r'''^['"](.*)['"]$''', dotAll: true)
         .firstMatch(listStyle);
-    if (quoted != null) return quoted.group(1)!.trim();
+    if (quoted != null) {
+      return quoted.group(1)!.trim();
+    }
     return CounterStyleRegistry.lookup(listStyle)
         .generateMarkerContent(index)
         .trim();
@@ -432,7 +452,9 @@ List<_SenseSplit> _splitDefinitionBySense(String rawDefinition) {
 /// Items without a `data-content` marker count too (older builds didn't tag
 /// them); anything with a different marker (e.g. `forms`) does not.
 bool _isSenseGroupItem(dynamic item) {
-  if (item is! Map || item['tag'] != 'li') return false;
+  if (item is! Map || item['tag'] != 'li') {
+    return false;
+  }
   final data = item['data'];
   final marker = data is Map ? data['content'] : null;
   return marker == null || marker == 'sense-group';
@@ -1058,7 +1080,9 @@ void preparePitchesYomichanFormat({
           final int? downstep = _parsePitchPosition(distinctPitch['position']);
           // An unparseable position used to throw a cast error here and
           // roll back the entire import.
-          if (downstep == null) continue;
+          if (downstep == null) {
+            continue;
+          }
           final pitch = DictionaryPitch(downstep: downstep);
           pitch.dictionary.value = params.dictionary;
           pitch.heading.value = heading;
@@ -1102,13 +1126,21 @@ void preparePitchesYomichanFormat({
 /// allows either the downstep as an integer or the pitch pattern as a string
 /// of `H`/`L` morae (e.g. `"LHHL"` → 3, `"HL"` → 1, `"LHH"` → 0).
 int? _parsePitchPosition(dynamic position) {
-  if (position is int) return position;
-  if (position is num) return position.toInt();
+  if (position is int) {
+    return position;
+  }
+  if (position is num) {
+    return position.toInt();
+  }
   if (position is String) {
     final pattern = position.trim().toUpperCase();
     final asInt = int.tryParse(pattern);
-    if (asInt != null) return asInt;
-    if (pattern.isEmpty || !RegExp(r'^[HL]+$').hasMatch(pattern)) return null;
+    if (asInt != null) {
+      return asInt;
+    }
+    if (pattern.isEmpty || !RegExp(r'^[HL]+$').hasMatch(pattern)) {
+      return null;
+    }
     final drop = pattern.indexOf('HL');
     return drop == -1 ? 0 : drop + 1;
   }
@@ -1152,12 +1184,18 @@ _FreqShape? _parseFreqItem(String term, dynamic raw) {
   dynamic frequency = raw;
   if (raw is Map) {
     final rawReading = raw['reading'];
-    if (rawReading is String) reading = rawReading;
-    if (raw.containsKey('frequency')) frequency = raw['frequency'];
+    if (rawReading is String) {
+      reading = rawReading;
+    }
+    if (raw.containsKey('frequency')) {
+      frequency = raw['frequency'];
+    }
   }
 
   final parsed = _parseFrequencyValue(frequency);
-  if (parsed == null) return null;
+  if (parsed == null) {
+    return null;
+  }
 
   return _FreqShape(
     term: term,
@@ -1175,7 +1213,9 @@ _FreqShape? _parseFreqItem(String term, dynamic raw) {
 
   if (frequency is String) {
     final display = frequency.trim();
-    if (display.isEmpty) return null;
+    if (display.isEmpty) {
+      return null;
+    }
     // Strings such as "1234" or "1234㋕" still sort by their leading number.
     return (_leadingNumber(display)?.toDouble() ?? 0, display);
   }
@@ -1192,7 +1232,9 @@ _FreqShape? _parseFreqItem(String term, dynamic raw) {
         ? rawDisplay.trim()
         : null;
 
-    if (value == null && display == null) return null;
+    if (value == null && display == null) {
+      return null;
+    }
     // `displayValue` is optional in the schema; without a fallback these
     // frequencies rendered as blank chips.
     return (

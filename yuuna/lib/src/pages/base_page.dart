@@ -52,6 +52,7 @@ class BasePageState<T extends BasePage> extends ConsumerState<T> {
   bool get _canUseRef => mounted && context.mounted;
 
   @override
+  @mustCallSuper
   void initState() {
     super.initState();
     _appModel = ref.read(appProvider);

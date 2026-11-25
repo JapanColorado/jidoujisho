@@ -804,10 +804,14 @@ class PlayerYoutubeSource extends PlayerMediaSource {
     // caller is gone. The old `!checkMounted() || ...` condition kept an
     // unmounted caller polling every 200 ms forever.
     while (_fetchingCaptions.isNotEmpty) {
-      if (!checkMounted()) return;
+      if (!checkMounted()) {
+        return;
+      }
       await Future.delayed(const Duration(milliseconds: 200), () {});
     }
-    if (!checkMounted()) return;
+    if (!checkMounted()) {
+      return;
+    }
 
     String url = item.mediaIdentifier;
 

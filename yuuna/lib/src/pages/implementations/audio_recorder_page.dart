@@ -46,10 +46,6 @@ class _AudioRecorderDialogPageState
   /// every play tap and none were ever cancelled.
   StreamSubscription<void>? _becomingNoisySubscription;
 
-  @override
-  void initState() {
-    super.initState();
-  }
 
   @override
   void dispose() {
@@ -358,7 +354,9 @@ class _AudioRecorderDialogPageState
           _isRecording = true;
         });
         RecordMp3.instance.start(widget.filePath, (error) {
-          if (!mounted) return;
+          if (!mounted) {
+            return;
+          }
           setState(() {
             _isRecording = false;
           });
