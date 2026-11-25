@@ -32,9 +32,15 @@ adb install -r build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
 adb logcat -c && adb shell am start -n app.arianneorpilla.yuuna/.MainActivity && adb logcat -d | grep -E "AndroidRuntime|FATAL"
 ```
 
-There is **no test suite** in the repo. There is **no lint command in CI** (`flutter analyze` works but produces many pre-existing warnings).
+There is **no test suite** in the repo. CI runs `flutter analyze --no-fatal-infos --no-fatal-warnings` (errors fail the build; the many pre-existing warnings and infos do not) and checks that the committed `*.g.dart` files match a fresh `build_runner` run.
 
-The release build is signed with the **debug** keystore (`signingConfig signingConfigs.debug` in `android/app/build.gradle`), so installs will refuse to upgrade the Play Store version of jidoujisho — uninstall first, or change `applicationId` to install side-by-side.
+Signing: if `yuuna/android/key.properties` exists (gitignored; `storeFile`/`storePassword`/`keyAlias`/`keyPassword`, `storeFile` relative to `android/app/`), it signs **both** release and debug builds, so a local build installs over a GitHub release. Without it both fall back to the debug keystore below. Either way the app id is upstream's `app.arianneorpilla.yuuna`, so installs refuse to upgrade the Play Store version of jidoujisho — uninstall first, or change `applicationId` to install side-by-side.
+
+Versioning: `android/app/build.gradle` sets `versionCode` to the commit count and `versionName` to `<major>.<minor>.<count>`, with major.minor from `pubspec.yaml`'s `version:` (bump it there by hand; its patch and `+build` parts are ignored, and so is `--build-number`). Per-ABI APKs then get `100 * versionCode + 1/2/3`. A shallow clone falls back to the pubspec values locally and fails the build under CI. Never rewrite `main`'s history: the commit count must only grow.
+
+## Releases
+
+Every push to `main` that passes `.github/workflows/ci.yml` publishes the three split-per-ABI APKs as a GitHub release tagged `v<versionName>`; Obtainium on the phone installs the one matching its ABI. Pushes that touch only docs (`**.md`, `docs/`, `fastlane/`, `chisa/`, `legacy/`) don't release; PRs run the checks plus an arm64 build signed with a throwaway key. CI signs with the keystore in the repo secrets (`KEYSTORE_BASE64`, `KEYSTORE_PASSWORD`, `KEY_ALIAS`, `KEY_PASSWORD`, the same names as Yagi's), which must stay the key the installed app was signed with: the workflow's `EXPECTED_CERT_SHA256` enforces this and refuses to publish otherwise.
 
 The debug keystore is pinned to `yuuna/android/keys/debug.keystore` (gitignored — generated locally with `keytool -genkey -keystore yuuna/android/keys/debug.keystore -storepass android -keypass android -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10950 -dname "CN=Android Debug, O=Android, C=US"`). This avoids the default `~/.android/debug.keystore` which various tooling silently regenerates, breaking `adb install -r` with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` between rebuilds. After cloning fresh, regenerate the keystore once with the command above before the first build.
 
@@ -45,6 +51,7 @@ The debug keystore is pinned to `yuuna/android/keys/debug.keystore` (gitignored 
 - `legacy/` — frozen 0.x source. Reference only.
 - `docs/` — generated dartdoc HTML for the wiki.
 - `fastlane/` — Play Store metadata.
+- `.github/workflows/ci.yml` — checks + release on every push to `main` (see Releases).
 - `Dockerfile` — installs Flutter + Android SDK; intended for reproducible APK builds (origin: PR #494).
 
 ## yuuna/ architecture

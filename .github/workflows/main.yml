@@ -1,51 +1,130 @@
-name: Build Android APK
+# Every push to main that passes the checks publishes a signed APK set as a GitHub release, which
+# Obtainium on the phone installs as an update (it picks the APK matching the phone's ABI). PRs and
+# docs-only pushes just run the checks and an arm64 smoke build signed with a throwaway key.
+name: CI
+
 on:
   push:
-    branches: ['main']
-    paths: ['yuuna/**']
+    branches: [main]
+    paths-ignore: ['**.md', 'docs/**', 'fastlane/**', 'chisa/**', 'legacy/**', '.claude/**', 'LICENSE']
   pull_request:
-    branches: ['main']
-    paths: ['yuuna/**']
+    paths-ignore: ['**.md', 'docs/**', 'fastlane/**', 'chisa/**', 'legacy/**', '.claude/**', 'LICENSE']
   workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a main run halfway through publishing a release.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  APP: jidoujisho
+  # SHA-256 of the signing certificate on the installed app (the same key as Yagi). A mismatch
+  # means the phone would reject the update, so the release step refuses to publish.
+  EXPECTED_CERT_SHA256: c4d32bc07c3d7b0c72ead8f9c08e197f618381175e900a6e976935a4e44a87f7
+  RELEASE: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    defaults:
+      run:
+        working-directory: yuuna
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v7
         with:
-          distribution: 'temurin'
-          java-version: '21'
-
+          fetch-depth: 0  # versionCode is the commit count
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 21
       - uses: subosito/flutter-action@v2
         with:
           flutter-version: '3.41.7'
-          channel: 'stable'
+          channel: stable
           cache: true
+      - uses: gradle/actions/setup-gradle@v6
 
       - name: Resolve dependencies
-        working-directory: yuuna
         run: flutter pub get
 
-      - name: Regenerate Isar/dart_mappable code
-        working-directory: yuuna
-        run: flutter pub run build_runner build --delete-conflicting-outputs
+      - name: Generated code is up to date
+        run: |
+          flutter pub run build_runner build --delete-conflicting-outputs
+          if ! git diff --exit-code --stat -- '*.g.dart'; then
+            echo "::error::Committed *.g.dart files are stale; run build_runner and commit the result"
+            exit 1
+          fi
+
+      - name: Analyze (errors only)
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
 
       - name: Generate debug keystore
         run: |
-          mkdir -p yuuna/android/keys
+          mkdir -p android/keys
           keytool -genkey -noprompt \
-            -keystore yuuna/android/keys/debug.keystore \
+            -keystore android/keys/debug.keystore \
             -storepass android -keypass android -alias androiddebugkey \
             -keyalg RSA -keysize 2048 -validity 10950 \
             -dname "CN=Android Debug, O=Android, C=US"
 
-      - name: Smoke-test release build (arm64)
-        working-directory: yuuna
-        run: flutter build apk --release --target-platform=android-arm64
+      - name: Write signing config
+        if: env.RELEASE == 'true'
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo "::error::Signing secrets are missing; refusing to publish an APK the phone can't update to"
+            exit 1
+          fi
+          echo "$KEYSTORE_BASE64" | base64 -d > android/app/release.jks
+          {
+            echo "storeFile=release.jks"
+            echo "storePassword=$KEYSTORE_PASSWORD"
+            echo "keyAlias=$KEY_ALIAS"
+            echo "keyPassword=$KEY_PASSWORD"
+          } > android/key.properties
+
+      - name: Build release APKs
+        run: |
+          if [ "$RELEASE" = true ]; then
+            flutter build apk --release --split-per-abi
+          else
+            flutter build apk --release --split-per-abi --target-platform android-arm64
+          fi
+
+      - name: Verify and publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Newest build-tools that actually ships apksigner (preview dirs may not).
+          bt="$(for d in $(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V); do [ -x "$d/apksigner" ] && echo "${d%/}"; done | tail -n1)"
+          shopt -s nullglob
+          apks=(build/app/outputs/apk/release/jidoujisho_yuuna_*.apk)
+          [ ${#apks[@]} -gt 0 ] || { echo "::error::No APKs in build/app/outputs/apk/release"; exit 1; }
+          echo "build-tools: $bt"
+          for apk in "${apks[@]}"; do
+            "$bt/aapt2" dump badging "$apk" | sed -n "s/^package: \(.*\) platformBuildVersionName.*/$(basename "$apk"): \1/p"
+            certs="$("$bt/apksigner" verify --print-certs "$apk" 2>&1)" || { echo "$certs"; exit 1; }
+            # Output format varies by build-tools ("Signer #1 certificate ..." vs "V2 Signer: certificate ...");
+            # every signer listed must be the expected one.
+            digest="$(grep -oE 'certificate SHA-256 digest: [0-9a-f]{64}' <<<"$certs" | awk '{print $NF}' | sort -u)"
+            echo "  signed by $digest"
+            if [ "$RELEASE" = true ] && [ "$digest" != "$EXPECTED_CERT_SHA256" ]; then
+              echo "::error::$apk is signed with $digest, expected $EXPECTED_CERT_SHA256"
+              exit 1
+            fi
+          done
+          [ "$RELEASE" = true ] || exit 0
+          version="$("$bt/aapt2" dump badging "${apks[0]}" | sed -n "s/^package: .*versionName='\([^']*\)'.*/\1/p")"
+          tag="v$version"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            echo "Release $tag already exists; nothing to publish"
+            exit 0
+          fi
+          gh release create "$tag" "${apks[@]}" --target "$GITHUB_SHA" --title "$APP $version" --generate-notes
+          echo "Published $tag" >> "$GITHUB_STEP_SUMMARY"
